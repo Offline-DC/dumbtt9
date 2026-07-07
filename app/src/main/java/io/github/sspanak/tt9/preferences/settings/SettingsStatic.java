@@ -47,6 +47,9 @@ public class SettingsStatic extends SettingsColors {
 	public final static float SOFT_KEY_V_SHAPE_RATIO_CLASSIC = (SOFT_KEY_V_SHAPE_RATIO_OUTER + SOFT_KEY_V_SHAPE_RATIO_INNER) * 0.49f;
 	public final static int SUGGESTIONS_MAX = 20;
 	public final static int SUGGESTIONS_MIN = 8;
+	// KT9 fork: the punctuation grid is this many normal rows tall (two compact rows). Shared by the
+	// keyboard height calc (MainLayoutTray) and the suggestion bar (RecyclerView height).
+	public final static float PUNCTUATION_GRID_ROWS_FACTOR = 2.4f;
 	public final static int SUGGESTIONS_SELECT_ANIMATION_DURATION = 66;
 	public final static int SUGGESTIONS_TRANSLATE_ANIMATION_DURATION = 0;
 	public final static int WORD_BACKGROUND_TASKS_DELAY = 15000; // ms

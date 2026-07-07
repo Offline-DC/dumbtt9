@@ -65,6 +65,11 @@ abstract public class CommandHandler extends TextEditingHandler {
 
 
 	public void setInputMode(int modeId) {
+		setInputMode(modeId, InputMode.CASE_UNDEFINED, false);
+	}
+
+
+	public void setInputMode(int modeId, int forcedTextCase, boolean lockTextCase) {
 		if (!allowedInputModes.contains(modeId) && modeId != InputMode.MODE_RECOMPOSING) {
 			return;
 		}
@@ -75,6 +80,11 @@ abstract public class CommandHandler extends TextEditingHandler {
 
 		mInputMode = InputMode.getInstance(settings, mLanguage, inputType, textField, modeId);
 		determineTextCase();
+
+		// KT9 fork: apply a "#"-selected text case (en / En / EN) when requested.
+		if (forcedTextCase != InputMode.CASE_UNDEFINED) {
+			mInputMode.applyForcedTextCase(forcedTextCase, lockTextCase);
+		}
 
 		if (modeId != InputMode.MODE_RECOMPOSING) {
 			settings.saveInputMode(mInputMode.getId());

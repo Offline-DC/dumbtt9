@@ -36,7 +36,8 @@
 	<color name="key_ok_ripple">#0961d6</color>
 	<color name="key_ok_text">#fff</color>
 
-	<color name="suggestion_selected_background">#8cb7f9</color> <!-- 8ed0fe / 7ecbff / #FFB27E / 73c7ff / 7ecfe2 / 8ac8f1 -->
+	<!-- KT9 fork: brand yellow highlight (from the Dumb theme) with black text, instead of blue. -->
+	<color name="suggestion_selected_background">#FAF594</color>
 	<color name="suggestion_selected_text">#000</color>
 	<color name="suggestion_separator">#888888</color>
 

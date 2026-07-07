@@ -65,6 +65,16 @@ public class WordFile extends RemoteAssetFile {
 			loadProperties();
 		}
 
+		// Fall back to a stable, non-null hash when the props file has an empty/missing
+		// "hash:" line (the offline dictionary build can't sha256 paths containing spaces,
+		// so it writes an empty hash). Returning null crashes the import at
+		// replaceLanguageMeta ("bind value at index 2 is null"); returning "" would make
+		// autoLoad reload the whole dictionary every session. size+words is non-empty and
+		// stable across restarts.
+		if (hash == null || hash.isEmpty()) {
+			hash = getSize() + "-" + getWords();
+		}
+
 		return hash;
 	}
 

@@ -330,7 +330,7 @@ class ModeWords extends ModeCheonjiin {
 	public void loadSuggestions(String currentWord) {
 		containsEmojis = false;
 
-		if (disablePredictions || loadPreferredChar() || loadSpecialCharacters() || loadEmojis()) {
+		if (disablePredictions || loadPreferredChar() || loadFirstKeyLetters() || loadSpecialCharacters() || loadEmojis()) {
 			predictions.reset();
 			onSuggestionsUpdated.run();
 			return;
@@ -345,6 +345,48 @@ class ModeWords extends ModeCheonjiin {
 			.setDigitSequence(digitSequence)
 			.setLanguage(language)
 			.load();
+	}
+
+
+	/**
+	 * KT9 fork: on the first key of a new word, show that key's letters in order (e.g. 2 -> a b c),
+	 * exactly like KT9 predictive mode. Normal word prediction resumes from the second key onward.
+	 */
+	protected boolean loadFirstKeyLetters() {
+		if (digitSequence.length() != 1 || !stem.isEmpty()) {
+			return false;
+		}
+
+		int number = digitSequence.charAt(0) - '0';
+		if (number < 2 || number > 9) {
+			return false;
+		}
+
+		ArrayList<String> letters = settings.getOrderedKeyChars(language, number);
+		if (letters == null || letters.isEmpty()) {
+			return false;
+		}
+
+		// KT9 fork: in TT9 (predictive) mode only, show the key's letters most-common-first by English
+		// frequency (e.g. 4 -> i, h, g), so pressing a key then space types the common letter. ABC mode
+		// and the shared key layout are unaffected. Non a-z letters keep their original relative order.
+		ArrayList<String> ordered = new ArrayList<>(letters);
+		ordered.sort((a, b) -> Integer.compare(englishFrequencyRank(a), englishFrequencyRank(b)));
+
+		suggestions = ordered;
+		return true;
+	}
+
+
+	// KT9 fork: lower rank = more frequent English letter; unknown letters sort last (stable).
+	private static final String ENGLISH_LETTER_FREQUENCY = "etaoinshrdlcumwfgypbvkjxqz";
+
+	private static int englishFrequencyRank(String letter) {
+		if (letter == null || letter.length() != 1) {
+			return Integer.MAX_VALUE;
+		}
+		int rank = ENGLISH_LETTER_FREQUENCY.indexOf(Character.toLowerCase(letter.charAt(0)));
+		return rank < 0 ? Integer.MAX_VALUE : rank;
 	}
 
 
@@ -592,14 +634,8 @@ class ModeWords extends ModeCheonjiin {
 	@NonNull
 	@Override
 	public String toString() {
-		String modeString = language.getName();
-		if (textCase == CASE_UPPER) {
-			return modeString.toUpperCase(language.getLocale());
-		} else if (textCase == CASE_LOWER) {
-			return modeString.toLowerCase(language.getLocale());
-		} else {
-			return modeString;
-		}
+		// KT9 fork: the predictive mode is always labelled "TT9".
+		return "TT9";
 	}
 
 

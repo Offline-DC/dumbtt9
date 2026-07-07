@@ -11,6 +11,10 @@
 	<!-- Status Bar -->
 	<dimen name="status_bar_text_size">16sp</dimen>
 
+	<!-- KT9 fork: total height of the 2-row punctuation grid (two small rows). Shared by the
+	     suggestion bar (RecyclerView height) and the keyboard height calc so they always agree. -->
+	<dimen name="punctuation_grid_height">40dp</dimen>
+
 	<!-- Main Small -->
 	<dimen name="main_small_suggestion_spacing_horizontal">6sp</dimen>
 

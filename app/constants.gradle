@@ -1,5 +1,8 @@
 ext.APP_NAME = 'tt9'
+// KT9/Dumb TT9 fork: the Java package + R-class namespace stays io.github.sspanak.tt9 (so no source
+// files move), but the INSTALLED app id is our own, so it installs cleanly alongside/over real TT9.
 ext.PACKAGE_NAME = "io.github.sspanak.${APP_NAME}"
+ext.APPLICATION_ID = "com.offlineinc.dumbtt9"
 
 ext.LANGUAGES_DIR_NAME = 'languages'
 ext.DEFINITIONS_DIR_NAME = 'definitions'

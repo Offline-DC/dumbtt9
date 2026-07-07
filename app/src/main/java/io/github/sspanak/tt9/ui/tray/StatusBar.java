@@ -161,7 +161,9 @@ public class StatusBar {
 
 
 	public void setText(VoiceInputOps voiceInputOps) {
-		setText("[ " + voiceInputOps.toString() + " ]");
+		// KT9 fork: no [ ] brackets around the voice prompt ("speak now (press * when done)"); the
+		// brackets are only for the short mode labels like [ en ] / [ TT9 ].
+		setText(voiceInputOps.toString());
 	}
 
 

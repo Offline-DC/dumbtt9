@@ -185,7 +185,10 @@ abstract public class SuggestionHandler extends TypingHandler {
 		} else {
 			// or highlight the stem, when filtering
 			trimmedWord = suggestionOps.getCurrent(mLanguage, mInputMode.getSequenceLength());
-			appHacks.setComposingTextWithHighlightedStem(trimmedWord, mInputMode.getWordStem(), mInputMode.isStemFilterFuzzy());
+			// KT9 fork: don't preview the punctuation grid character in the field; it inserts only on Enter.
+			if (!mInputMode.isPunctuationPanelShown()) {
+				appHacks.setComposingTextWithHighlightedStem(trimmedWord, mInputMode.getWordStem(), mInputMode.isStemFilterFuzzy());
+			}
 		}
 
 		// append guesses from the MindReader

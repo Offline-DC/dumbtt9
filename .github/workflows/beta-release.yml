@@ -1,0 +1,105 @@
+# Dumb TT9 — BETA release. Ported from the voice app's pipeline, adapted for
+# this fork's LITE build and git-based versioning.
+#
+# Push a prerelease tag (e.g. `v63-beta1`) and this builds + signs the LITE APK
+# and publishes it as a GitHub *pre-release*. The launcher's beta channel (opt
+# in by long-pressing "updates" in All Apps) then delivers it to testers.
+#
+# Signing uses the shared Offline-DC keystore (offline-shared.jks) via four repo
+# secrets: KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD.
+name: Beta Release
+
+on:
+  push:
+    tags:
+      - 'v*-beta*'
+      - 'v*-rc*'
+      - 'v*-alpha*'
+
+concurrency:
+  group: beta-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # create the release + upload the APK
+
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v4
+        with:
+          # version-tools.gradle derives the version from the number of v-tags
+          # and the commit count, so we need the full history and all tags.
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "${{ github.workspace }}/keystore.jks"
+
+      - name: Build signed lite release APK
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/keystore.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleLiteRelease
+
+      - name: Locate APK
+        id: apk
+        run: |
+          SRC=$(find app/build/outputs/apk/lite/release -name "*.apk" | head -1)
+          if [ -z "$SRC" ]; then
+            echo "::error::No APK found under app/build/outputs/apk/lite/release"
+            exit 1
+          fi
+          cp "$SRC" "${{ github.workspace }}/dumb-tt9-beta.apk"
+          echo "sha256=$(sha256sum "${{ github.workspace }}/dumb-tt9-beta.apk" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Read version code from the built APK
+        id: version
+        # kt9 computes versionCode from the git commit count (no literal in the
+        # build file), so read what actually landed in the APK.
+        run: |
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          VC=$("$BT/aapt" dump badging "${{ github.workspace }}/dumb-tt9-beta.apk" | grep -oP "versionCode='\K[0-9]+")
+          if [ -z "$VC" ]; then
+            echo "::error::Could not read versionCode from the APK"
+            exit 1
+          fi
+          echo "code=$VC" >> "$GITHUB_OUTPUT"
+
+      - name: Verify signature
+        run: |
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          "$BT/apksigner" verify --verbose "${{ github.workspace }}/dumb-tt9-beta.apk"
+
+      - name: Create GitHub Release (prerelease)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          prerelease: true
+          # The launcher's UpdateChecker.parseRelease reads `version_code=<int>`
+          # from this body to decide whether a newer build is available.
+          body: |
+            version_code=${{ steps.version.outputs.code }}
+            sha256=${{ steps.apk.outputs.sha256 }}
+
+            Beta build of the Dumb TT9 keyboard. Opt into beta-tester mode on the launcher (long-press "updates" in All Apps) to receive it.
+          files: dumb-tt9-beta.apk
+
+      - name: Clean up keystore
+        if: always()
+        run: rm -f "${{ github.workspace }}/keystore.jks"

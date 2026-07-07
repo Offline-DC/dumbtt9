@@ -173,11 +173,22 @@ class SettingsKeyChars extends SettingsInput {
 				chars.addAll(getCharsExtraAsList(language, CHARS_AFTER_GROUP_0));
 			}
 			case 1 -> {
-				chars = getChars1AsList(language);
-				if (!getCharsExtra(language, CHARS_GROUP_1).isEmpty()) {
-					chars.add(SuggestionsBar.SHOW_GROUP_1_SUGGESTION);
-				}
-				chars.addAll(getCharsExtraAsList(language, CHARS_AFTER_GROUP_1));
+				// KT9 fork: fixed KT9 punctuation grid, in row-major order for the 7-column grid. The
+				// viewport shows 2 rows and scrolls through the rest (yellow scrollbar on the right).
+				//   row 1: ↵ . , @ ! ? -     row 2: : & ' ( ) # +
+				//   row 3: = / ¡ ¿ * ; $     row 4: \ " < > % ^ _
+				//   row 5: " ~ ` | [ ] ×     row 6: { } ÷ · ° √ ®
+				//   row 7: © £ ¥ € ¢ (space)
+				// "\n" is the return key (rendered as ↵) and " " is the space (rendered as ␣) by the adapter.
+				return new ArrayList<>(java.util.Arrays.asList(
+					"\n", ".", ",", "@", "!", "?", "-",
+					":", "&", "'", "(", ")", "#", "+",
+					"=", "/", "¡", "¿", "*", ";", "$",
+					"\\", "\"", "<", ">", "%", "^", "_",
+					"\"", "~", "`", "|", "[", "]", "×",
+					"{", "}", "÷", "·", "°", "√", "®",
+					"©", "£", "¥", "€", "¢", " "
+				));
 			}
 			default -> {
 				return language.getKeyCharacters(number);

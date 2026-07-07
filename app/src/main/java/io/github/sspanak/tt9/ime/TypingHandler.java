@@ -17,6 +17,7 @@ import io.github.sspanak.tt9.hacks.InputType;
 import io.github.sspanak.tt9.ime.helpers.CursorOps;
 import io.github.sspanak.tt9.ime.helpers.InputConnectionAsync;
 import io.github.sspanak.tt9.ime.helpers.InputModeValidator;
+import io.github.sspanak.tt9.ime.helpers.Key;
 import io.github.sspanak.tt9.ime.helpers.SuggestionOps;
 import io.github.sspanak.tt9.ime.helpers.TextField;
 import io.github.sspanak.tt9.ime.helpers.TextSelection;
@@ -211,6 +212,14 @@ public abstract class TypingHandler extends KeyPadHandler {
 		suggestionOps.cancelDelayedAccept();
 
 		hold = hold && settings.getHoldToType();
+
+		// KT9 fork: the 0 key is a plain Space in text modes (accepting the current word first), instead
+		// of TT9's 0-key special-character panel. In 123/numeric mode it keeps typing "0".
+		if (key == 0 && !hold && !InputModeKind.isNumeric(mInputMode)) {
+			onText(Characters.getSpace(mLanguage), false);
+			return true;
+		}
+
 		String[] surroundingChars = textField.getSurroundingStringForAutoAssistance(settings, mInputMode);
 		String lastWord = null;
 
@@ -251,6 +260,15 @@ public abstract class TypingHandler extends KeyPadHandler {
 
 
 	public boolean onText(String text, boolean validateOnly) {
+		// KT9 fork: tapping "*" opens the punctuation list (like KT9) instead of typing a "*".
+		// It reuses the key-1 special-character flow (row 1 = CHARS_1, row 2 = CHARS_GROUP_1).
+		if ("*".equals(text)) {
+			if (!validateOnly) {
+				showPunctuation();
+			}
+			return true;
+		}
+
 		if (mInputMode.shouldIgnoreText(text)) {
 			return false;
 		}
@@ -295,6 +313,21 @@ public abstract class TypingHandler extends KeyPadHandler {
 		updateShiftState(surroundingChars[0], false, false);
 
 		return true;
+	}
+
+
+	/**
+	 * KT9 fork: show the punctuation list (the layout maps key "1" to punctuation). We replay a key-1
+	 * press, but DEFERRED to the next main-loop tick — running it synchronously here re-enters the key
+	 * pipeline from inside the * key event and injects a stray space. Deferring makes it behave
+	 * exactly like the user pressing "1" as a separate event.
+	 */
+	private void showPunctuation() {
+		final int keyCode1 = Key.numberToCode(settings, 1);
+		new Handler(Looper.getMainLooper()).post(() -> {
+			onKeyDown(keyCode1, new KeyEvent(KeyEvent.ACTION_DOWN, keyCode1));
+			onKeyUp(keyCode1, new KeyEvent(KeyEvent.ACTION_UP, keyCode1));
+		});
 	}
 
 

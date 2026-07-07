@@ -23,6 +23,10 @@ class ModeABC extends InputMode {
 
 	private boolean shouldSelectNextLetter = false;
 
+	// KT9 fork: the selected ABC sub-mode (en/En/EN), stored as a text case. Drives both the status
+	// label and the typing case. Defaults to en (all lowercase).
+	private int labelCase = CASE_LOWER;
+
 	// text analysis
 	@NonNull private final AutoSpace autoSpace;
 	@NonNull private final AutoTextCase autoTextCase;
@@ -72,16 +76,24 @@ class ModeABC extends InputMode {
 			newSuggestions.add(language.getKeyNumeral(number));
 			suggestions = newSuggestions;
 		} else if (repeat > 0 && !suggestions.isEmpty()) {
-			autoAcceptTimeout = settings.getAutoAcceptTimeoutAbc();
+			// KT9 fork: classic multi-tap for letters — cycle to the next letter and (re)start the accept
+			// timer, so the letter commits after the ABC timeout and a later tap starts a fresh letter
+			// (e.g. tap A, wait, tap A -> "aa"). The "1" key opens the punctuation panel, which must stay
+			// open until the user picks a character, so it never auto-commits.
+			autoAcceptTimeout = number == 1 ? -1 : settings.getAutoAcceptTimeoutAbc();
 			shouldSelectNextLetter = true;
 		} else {
 			reset();
-			autoAcceptTimeout = settings.getAutoAcceptTimeoutAbc();
+			// KT9 fork: classic multi-tap — start the accept timer so the first letter commits after the
+			// ABC timeout; tapping the same key again before then cycles to the next letter. The "1" key
+			// opens the punctuation panel, which must stay open (no auto-commit) until the user picks.
+			autoAcceptTimeout = number == 1 ? -1 : settings.getAutoAcceptTimeoutAbc();
 			digitSequence = String.valueOf(number);
 			shouldSelectNextLetter = false;
 
+			// KT9 fork: show only the key's letters to pick from, not the digit. The number is still
+			// available by holding the key.
 			ArrayList<String> newSuggestions = new ArrayList<>(KEY_CHARACTERS.size() > number ? KEY_CHARACTERS.get(number) : settings.getOrderedKeyChars(language, number));
-			newSuggestions.add(language.getKeyNumeral(number));
 			suggestions = newSuggestions;
 		}
 
@@ -102,9 +114,36 @@ class ModeABC extends InputMode {
 
 	@Override
 	public void determineNextWordTextCase(@Nullable String beforeCursor, int nextDigit) {
-		if (settings.getAutoTextCaseAbc()) {
+		// KT9 fork: the case is driven entirely by which ABC sub-mode is selected (labelCase), so it
+		// is consistent no matter how ABC was entered (via "#" or as the default mode):
+		//   en (CASE_LOWER)      -> always lowercase
+		//   EN (CASE_UPPER)      -> always uppercase
+		//   En (CASE_CAPITALIZE) -> auto sentence-casing (capital at sentence start, lower otherwise)
+		if (labelCase == CASE_LOWER) {
+			textCase = CASE_LOWER;
+		} else if (labelCase == CASE_UPPER) {
+			textCase = CASE_UPPER;
+		} else {
 			textCase = autoTextCase.determineNextLetterTextCase(language, textFieldTextCase, beforeCursor);
 		}
+	}
+
+
+	/**
+	 * KT9 fork: force the ABC sub-mode (en/En/EN) used by the "#" cycle. The selected case is stored
+	 * in labelCase, which both the status label and determineNextWordTextCase read from.
+	 */
+	@Override
+	public void applyForcedTextCase(int newTextCase, boolean lock) {
+		if (setTextCase(newTextCase)) {
+			labelCase = newTextCase;
+		}
+	}
+
+
+	@Override
+	public int getSelectedTextCase() {
+		return labelCase;
 	}
 
 
@@ -232,15 +271,7 @@ class ModeABC extends InputMode {
 	@NonNull
 	@Override
 	public String toString() {
-		String modeString = language.getAbcString();
-
-		// There are many languages written using the same alphabet, so if the user has
-		// enabled multiple ones, make it clear which one is it, by appending the unique
-		// country or language code to "ABC" or "АБВ".
-		if (LanguageKind.isArabicBased(language) || LanguageKind.isCyrillic(language) || LanguageKind.isHebrew(language) || LanguageKind.isLatinBased(language)) {
-			modeString += " / " + language.getCode();
-		}
-
-		return new Text(language, modeString).toTextCase(textCase);
+		// KT9 fork: show the language code in the "#"-selected case, e.g. en / En / EN.
+		return new Text(language, language.getCode()).toTextCase(labelCase);
 	}
 }

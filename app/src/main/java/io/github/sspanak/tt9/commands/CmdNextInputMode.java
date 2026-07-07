@@ -36,17 +36,28 @@ public class CmdNextInputMode implements Command {
 	}
 
 
+	// KT9 fork: the "#" key steps through a fixed cycle:
+	//   en (ABC lower, locked) -> En (ABC sentence case) -> EN (ABC upper, locked) -> 123 -> TT9 (predictive)
+	// Each row is { modeId, forcedTextCase, lock(1/0) }. CASE_UNDEFINED means "don't force a case".
+	private static final int[][] STEPS = {
+		{ InputMode.MODE_ABC, InputMode.CASE_LOWER, 1 },            // en
+		{ InputMode.MODE_ABC, InputMode.CASE_CAPITALIZE, 0 },       // En
+		{ InputMode.MODE_ABC, InputMode.CASE_UPPER, 1 },            // EN
+		{ InputMode.MODE_123, InputMode.CASE_UNDEFINED, 0 },        // 123
+		{ InputMode.MODE_PREDICTIVE, InputMode.CASE_UNDEFINED, 0 }, // TT9
+	};
+
+
 	public boolean run(@Nullable TraditionalT9 tt9) {
 		if (tt9 == null) {
 			return false;
 		}
 
-		InputMode inputMode = tt9.getInputMode();
+		tt9.getSuggestionOps().scheduleDelayedAccept(tt9.getInputMode().getAutoAcceptTimeout()); // restart the timer
 
-		tt9.getSuggestionOps().scheduleDelayedAccept(inputMode.getAutoAcceptTimeout()); // restart the timer
-		final int nextModeId = getNextInputMode(tt9);
-		if (nextModeId != inputMode.getId()) {
-			tt9.setInputMode(nextModeId);
+		int[] next = getNextStep(tt9);
+		if (next != null) {
+			tt9.setInputMode(next[0], next[1], next[2] == 1);
 		}
 
 		tt9.forceShowWindow();
@@ -54,15 +65,56 @@ public class CmdNextInputMode implements Command {
 	}
 
 
-	private int getNextInputMode(@NonNull TraditionalT9 tt9) {
-		ArrayList<Integer> allowedInputModes = tt9.getAllowedInputModes();
-		InputMode currentMode = tt9.getInputMode();
+	/**
+	 * Builds the list of cycle steps valid for the current field and language, skipping modes the
+	 * field disallows and the En/EN cases for languages without upper case.
+	 */
+	private ArrayList<int[]> getAvailableSteps(@NonNull TraditionalT9 tt9) {
+		ArrayList<Integer> allowed = tt9.getAllowedInputModes();
+		boolean hasUpperCase = tt9.getLanguage() != null && tt9.getLanguage().hasUpperCase();
 
-		if (allowedInputModes.size() == 1 && allowedInputModes.contains(InputMode.MODE_123) && !InputModeKind.is123(currentMode)) {
-			return InputMode.MODE_123;
-		} else {
-			final int nextModeIndex = (allowedInputModes.indexOf(currentMode.getId()) + 1) % allowedInputModes.size();
-			return allowedInputModes.get(nextModeIndex);
+		ArrayList<int[]> steps = new ArrayList<>();
+		for (int[] step : STEPS) {
+			if (!allowed.contains(step[0])) {
+				continue;
+			}
+			if (step[0] == InputMode.MODE_ABC && step[1] != InputMode.CASE_LOWER && !hasUpperCase) {
+				continue;
+			}
+			steps.add(step);
 		}
+
+		return steps;
+	}
+
+
+	private int getCurrentStepIndex(@NonNull TraditionalT9 tt9, @NonNull ArrayList<int[]> steps) {
+		InputMode mode = tt9.getInputMode();
+		int modeId = mode.getId();
+		int selectedCase = mode.getSelectedTextCase();
+
+		for (int i = 0; i < steps.size(); i++) {
+			int[] step = steps.get(i);
+			if (step[0] != modeId) {
+				continue;
+			}
+			if (modeId != InputMode.MODE_ABC || step[1] == selectedCase) {
+				return i;
+			}
+		}
+
+		return -1;
+	}
+
+
+	@Nullable
+	private int[] getNextStep(@NonNull TraditionalT9 tt9) {
+		ArrayList<int[]> steps = getAvailableSteps(tt9);
+		if (steps.isEmpty()) {
+			return null;
+		}
+
+		int nextIndex = (getCurrentStepIndex(tt9, steps) + 1) % steps.size(); // current == -1 starts the cycle at 0
+		return steps.get(nextIndex);
 	}
 }

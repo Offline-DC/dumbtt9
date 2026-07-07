@@ -89,7 +89,7 @@ abstract class KeyPadHandler extends UiHandler {
 			Key.setHandled(KeyEvent.KEYCODE_ENTER, Key.isOK(keyCode) && onOK())
 			|| handleHotkey(keyCode, true, false, true) // hold a hotkey, handled in onKeyLongPress())
 			|| handleHotkey(keyCode, false, keyRepeatCounter + 1 > 0, true) // press a hotkey, handled in onKeyUp()
-			|| Key.isPoundOrStar(keyCode) && onText(String.valueOf((char) event.getUnicodeChar()), true)
+			|| Key.isPoundOrStar(keyCode) && onText(charForPoundOrStar(keyCode, event), true)
 			|| super.onKeyDown(keyCode, event); // let the system handle the keys we don't care about (usually, the touch "buttons")
 	}
 
@@ -180,13 +180,29 @@ abstract class KeyPadHandler extends UiHandler {
 		return
 			(Key.isOK(keyCode) && Key.isHandled(KeyEvent.KEYCODE_ENTER))
 			|| handleHotkey(keyCode, false, keyRepeatCounter > 0, false)
-			|| Key.isPoundOrStar(keyCode) && onText(String.valueOf((char) event.getUnicodeChar()), false)
+			|| Key.isPoundOrStar(keyCode) && onText(charForPoundOrStar(keyCode, event), false)
 			|| super.onKeyUp(keyCode, event); // let the system handle the keys we don't care about (usually, the touch "buttons")
 	}
 
 
 	private boolean handleHotkey(int keyCode, boolean hold, boolean repeat, boolean validateOnly) {
 		return onHotkey(keyCode * (hold ? -1 : 1), repeat, validateOnly);
+	}
+
+
+	/**
+	 * KT9 fork: some phone keypads (e.g. the TCL flip) report a blank/space unicode char for the "*"
+	 * key, so the text passed to onText() was a space instead of "*", breaking the punctuation
+	 * handler. Map by keycode so "*" and "#" are always correct regardless of the device keymap.
+	 */
+	private String charForPoundOrStar(int keyCode, KeyEvent event) {
+		if (keyCode == KeyEvent.KEYCODE_STAR) {
+			return "*";
+		}
+		if (keyCode == KeyEvent.KEYCODE_POUND) {
+			return "#";
+		}
+		return String.valueOf((char) event.getUnicodeChar());
 	}
 
 

@@ -35,7 +35,7 @@ class MainLayoutSmall extends MainLayoutTray {
 		if (isCommandPaletteShown() || isTextEditingPaletteShown()) {
 			return super.getPanelHeight(resources);
 		} else {
-			return tt9.getResources().getDimensionPixelSize(R.dimen.main_small_main_key_wrapper_height);
+			return 0;
 		}
 	}
 
@@ -43,7 +43,7 @@ class MainLayoutSmall extends MainLayoutTray {
 	@Override
 	protected void setSoftKeysVisibility() {
 		if (view != null) {
-			togglePanel(R.id.main_soft_keys, true);
+			togglePanel(R.id.main_soft_keys, false);
 			togglePanel(R.id.main_small_messenger_padding_hack, tt9.getSettings().getMessengerReplyExtraPadding());
 		}
 	}
@@ -58,7 +58,7 @@ class MainLayoutSmall extends MainLayoutTray {
 
 	@Override
 	void showKeyboard() {
-		togglePanel(R.id.main_soft_keys, true);
+		togglePanel(R.id.main_soft_keys, false);
 		super.showKeyboard();
 	}
 

@@ -222,7 +222,7 @@ public class VoiceInputOps {
 	@NonNull
 	@Override
 	public String toString() {
-		String languageSuffix = language == null ? "" : " / " + language.getName();
-		return ims.getString(R.string.voice_input_listening) + languageSuffix;
+		// KT9 fork: show exactly the "speak now (press * when done)" prompt, without the language suffix.
+		return ims.getString(R.string.voice_input_listening);
 	}
 }

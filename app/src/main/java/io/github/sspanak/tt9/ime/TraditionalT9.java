@@ -26,6 +26,11 @@ import io.github.sspanak.tt9.util.sys.SystemSettings;
 public class TraditionalT9 extends PremiumHandler {
 	private static final String LOG_TAG = "MAIN";
 
+	// KT9 fork: how many px the app is allowed to extend behind the keyboard's top edge, to hide the
+	// thin white gap some apps leave above the keyboard. Tune this if a sliver remains or too much of the
+	// text box is hidden.
+	private static final int APP_GAP_COVER_PX = 8;
+
 	private Future<?> asyncInitThread;
 
 	@NonNull private final Handler backgroundTasks = new Handler(Looper.getMainLooper());
@@ -55,10 +60,14 @@ public class TraditionalT9 extends PremiumHandler {
 	@Override
 	public void onComputeInsets(Insets outInsets) {
 		super.onComputeInsets(outInsets);
-		if (settings.clearInsets() && shouldBeVisible()) {
-			// otherwise the MainView wouldn't show up on Sonim XP3900,
-			// or it expands the application window past the edge of the screen
-			outInsets.contentTopInsets = 0;
+		// KT9 fork: some apps (e.g. Messages) leave a thin strip of their own (white) background between
+		// their text box and the keyboard. We can't cover it by growing the keyboard (the app just re-opens
+		// the gap higher up). Instead we report the content region as reaching a few px BELOW the visible
+		// top of the keyboard, so the app draws its content — and its own bottom margin — down behind our
+		// opaque keyboard, hiding the strip. contentTopInsets is measured from the top of the IME window;
+		// a larger value means the app may extend that many px into the keyboard's top edge.
+		if (shouldBeVisible()) {
+			outInsets.contentTopInsets = outInsets.visibleTopInsets + APP_GAP_COVER_PX;
 		}
 	}
 

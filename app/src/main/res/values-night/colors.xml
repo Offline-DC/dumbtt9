@@ -4,7 +4,8 @@
 		Keyboard
 	*******************************************-->
 
-	<color name="keyboard_background">#292e33</color>
+	<!-- KT9 fork: true black background to match the Dumb theme. -->
+	<color name="keyboard_background">#000000</color>
 	<color name="keyboard_text">#d4d5d6</color>
 
 	<color name="key_num_background">#484c4f</color>
@@ -20,7 +21,9 @@
 	<color name="key_ok_ripple">#4c85e4</color>
 	<color name="key_ok_text">#fff</color>
 
-	<color name="suggestion_selected_background">#347bac</color>
-	<color name="suggestion_selected_text">#fff</color>
-	<color name="suggestion_separator">#888888</color>
+	<!-- KT9 fork: brand yellow highlight (from the Dumb theme) with black text, instead of blue. -->
+	<color name="suggestion_selected_background">#FAF594</color>
+	<color name="suggestion_selected_text">#000</color>
+	<!-- KT9 fork: softer, less "spreadsheet" divider lines on the black background. -->
+	<color name="suggestion_separator">#3a3a3a</color>
 </resources>

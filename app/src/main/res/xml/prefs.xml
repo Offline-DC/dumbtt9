@@ -8,7 +8,7 @@
 		app:title="@string/pref_help">
 		<intent
 			android:action="android.intent.action.VIEW"
-			android:targetPackage="io.github.sspanak.tt9"
+			android:targetPackage="com.offlineinc.dumbtt9"
 			android:targetClass="io.github.sspanak.tt9.preferences.HelpActivity" />
 	</Preference>
 
@@ -46,7 +46,7 @@
 			app:summary="@string/english_only">
 			<intent
 				android:action="android.intent.action.VIEW"
-				android:targetPackage="io.github.sspanak.tt9"
+				android:targetPackage="com.offlineinc.dumbtt9"
 				android:targetClass="io.github.sspanak.tt9.preferences.PrivacyPolicyActivity" />
 		</Preference>
 

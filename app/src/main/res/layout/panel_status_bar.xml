@@ -5,6 +5,8 @@
 	<androidx.recyclerview.widget.RecyclerView
 		style="@style/TTheme.MainSmall.StatusBar.SuggestionList"
 		android:id="@+id/suggestions_bar"
+		android:clipChildren="false"
+		android:clipToPadding="false"
 		android:defaultFocusHighlightEnabled="false"
 		android:focusable="false"
 		android:focusableInTouchMode="false" />

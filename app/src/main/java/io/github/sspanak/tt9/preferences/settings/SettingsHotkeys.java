@@ -31,7 +31,10 @@ import io.github.sspanak.tt9.ime.helpers.Hotkey;
 import io.github.sspanak.tt9.util.Logger;
 
 public class SettingsHotkeys extends SettingsVirtualNumpad {
-	private static final String HOTKEY_VERSION = "hotkeys_v6";
+	// KT9 fork: bumped to force existing installs to re-apply the new default hotkeys
+	// (tap-* freed for punctuation, hold-* = voice, command palette unbound, Korean-space star
+	// fallback removed so it no longer steals tap-* and types a space).
+	private static final String HOTKEY_VERSION = "hotkeys_v8";
 
 
 	SettingsHotkeys(Context context) { super(context); }

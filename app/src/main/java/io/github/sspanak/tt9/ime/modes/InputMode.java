@@ -169,6 +169,13 @@ abstract public class InputMode {
 	public boolean containsGeneratedSuggestions() { return false; }
 
 	public boolean isTyping() { return !digitSequence.isEmpty(); }
+
+	// KT9 fork: true while the key-1 punctuation panel is showing, so the keyboard can grow to two
+	// rows for a KT9-style punctuation grid.
+	public boolean isPunctuationPanelShown() {
+		return digitSequence.equals(seq.CHARS_1_SEQUENCE) || digitSequence.equals(seq.CHARS_GROUP_1_SEQUENCE);
+	}
+
 	public int getFirstKey() { return digitSequence.isEmpty() ? -1 : digitSequence.charAt(0) - '0'; }
 	public int getSequenceLength() { return digitSequence.length(); } // The number of key presses for the current word.
 	public int getAutoAcceptTimeout() { return autoAcceptTimeout; }
@@ -213,6 +220,12 @@ abstract public class InputMode {
 	public int getTextCase() { return getTextCaseRaw(); }
 	public int getTextCaseRaw() { return textCase; }
 
+	/**
+	 * KT9 fork: the "#"-selected case, which stays fixed even when auto sentence-casing flips the
+	 * live textCase mid-word. Used by the # cycle to know which of en/En/EN we are on.
+	 */
+	public int getSelectedTextCase() { return textCase; }
+
 	public boolean setTextCase(int newTextCase) {
 		if (!allowedTextCases.contains(newTextCase)) {
 			return false;
@@ -244,6 +257,13 @@ abstract public class InputMode {
 
 	public void determineNextWordTextCase(@Nullable String beforeCursor, int nextDigit) {}
 	public void skipNextTextCaseDetection() {}
+
+	/**
+	 * KT9 fork: force a specific text case for this mode and optionally lock it, so the "#" key
+	 * can cycle en (locked lower) / En (auto sentence case) / EN (locked upper). No-op by default;
+	 * only ModeABC honors it.
+	 */
+	public void applyForcedTextCase(int newTextCase, boolean lock) {}
 
 	// Based on the internal logic of the mode (punctuation or grammar rules), re-adjust the text case for when getSuggestions() is called.
 	protected String adjustSuggestionTextCase(String word, int newTextCase) { return word; }

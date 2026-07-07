@@ -97,7 +97,9 @@ class SettingsTyping extends SettingsMindReading {
 
 	public boolean getShowSuggestions() {
 		final int inputMode = getInputMode();
-		final boolean showInAbc = prefs.getBoolean("show_suggestions_abc", false);
+		// KT9 fork: default to showing the suggestion row in ABC too, so en/En/EN display the key's
+		// letters (m n o) to pick from, like KT9. Stock TT9 hides them in ABC by default.
+		final boolean showInAbc = prefs.getBoolean("show_suggestions_abc", true);
 
 		return inputMode != InputMode.MODE_ABC || showInAbc;
 	}

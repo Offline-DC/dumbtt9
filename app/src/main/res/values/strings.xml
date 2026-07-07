@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-	<string name="app_name" translatable="false">Traditional T9</string>
-	<string name="app_name_short" translatable="false">TT9</string>
+	<string name="app_name" translatable="false">Dumb TT9</string>
+	<string name="app_name_short" translatable="false">Dumb TT9</string>
 	<string name="dictionary_url" translatable="false">https://raw.githubusercontent.com/sspanak/tt9/%1$s/downloads/%2$s</string>
 	<string name="system_night_mode" translatable="false">n</string>
 
@@ -12,7 +12,7 @@
 	<string name="english_only" translatable="false">English only</string>
 	<string name="language">Language</string>
 	<string name="list_item_none" translatable="false">--</string>
-	<string name="loading">Loading…</string>
+	<string name="loading">loading...</string>
 	<string name="search_results">Search Results</string>
 	<string name="search_results_void">No results.</string>
 	<string name="version_info">%1$s\nMade by Dimo Karaivanov, and contributors from all over the world.</string>
@@ -352,8 +352,8 @@
 	<string name="virtual_key_shift" translatable="false">Shift</string>
 	<string name="virtual_key_space_korean">Space</string>
 
-	<string name="voice_input_listening">Speak</string>
-	<string name="voice_input_stopping">Turning off the microphone…</string>
+	<string name="voice_input_listening">speak now (press * when done)</string>
+	<string name="voice_input_stopping">turning off mic</string>
 	<string name="voice_input_mic_permission_is_needed">You must allow the microphone permission to use voice input.</string>
 	<string name="voice_input_error_incompatible_voice_service">Incompatible voice assistant</string>
 	<string name="voice_input_error_generic">Voice input error</string>

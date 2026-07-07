@@ -11,12 +11,14 @@ import io.github.sspanak.tt9.R;
 import io.github.sspanak.tt9.colors.AbstractColorScheme;
 import io.github.sspanak.tt9.colors.CollectionColorScheme;
 import io.github.sspanak.tt9.colors.ColorSchemeSystem;
+import io.github.sspanak.tt9.colors.ColorSchemeSystemDark;
 import io.github.sspanak.tt9.preferences.custom.EnhancedDropDownPreference;
 import io.github.sspanak.tt9.preferences.settings.SettingsStore;
 
 public class DropDownColorScheme extends EnhancedDropDownPreference {
 	public static final String NAME = "pref_theme";
-	public static final String DEFAULT = String.valueOf(ColorSchemeSystem.ID);
+	// KT9 fork: default to always-dark instead of following the system theme.
+	public static final String DEFAULT = String.valueOf(ColorSchemeSystemDark.ID);
 
 	@Nullable protected SettingsStore settings;
 

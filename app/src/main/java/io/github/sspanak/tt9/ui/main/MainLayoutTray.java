@@ -46,7 +46,10 @@ class MainLayoutTray extends MainLayoutExtraPanel {
 		float textSize = resources.getDimension(R.dimen.status_bar_text_size);
 		float padding = textSize * 0.45f;
 		padding = padding < 1 ? 1 : padding;
-		return Math.round((padding + textSize) * settings.getSuggestionFontScale());
+		int oneRow = Math.round((padding + textSize) * settings.getSuggestionFontScale());
+		// KT9 fork: two compact rows while the punctuation panel is showing (scales with the text size).
+		boolean punct = tt9.getInputMode() != null && tt9.getInputMode().isPunctuationPanelShown();
+		return punct ? Math.round(oneRow * SettingsStore.PUNCTUATION_GRID_ROWS_FACTOR) : oneRow;
 	}
 
 

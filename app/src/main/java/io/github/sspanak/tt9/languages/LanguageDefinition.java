@@ -93,7 +93,11 @@ public class LanguageDefinition {
 				contents.append(buffer, 0, read);
 			}
 
-			return contents.toString().split("\n");
+			// Split on CRLF or LF. The definitions.yml built on Windows/WSL can have CRLF line
+			// endings; splitting on "\n" alone leaves a trailing "\r" that breaks the exact
+			// "layout:" match in setLayoutEntry, so the key layout never loads and ABC mode
+			// falls back to typing numbers instead of letters.
+			return contents.toString().split("\r?\n");
 		} catch (IOException e) {
 			Logger.e(LOG_TAG, "Failed reading language definitions from: '" + DEFINITIONS_PATH + "'. " + e.getMessage());
 			return new String[0];

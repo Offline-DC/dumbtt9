@@ -118,7 +118,21 @@ public abstract class HotkeyHandler extends CommandHandler {
 	}
 
 
+	// KT9 fork: the punctuation grid is 7 columns (14 characters in 2 rows), so d-pad up/down move a
+	// whole row (7 positions) between the top and bottom rows.
+	private static final int PUNCTUATION_GRID_COLUMNS = 7;
+
 	public boolean onHotkey(int keyCode, boolean repeat, boolean validateOnly) {
+		// KT9 fork: in the punctuation grid, d-pad up/down jump between the two rows.
+		boolean up = keyCode == KeyEvent.KEYCODE_DPAD_UP;
+		boolean down = keyCode == KeyEvent.KEYCODE_DPAD_DOWN;
+		if ((up || down) && mInputMode.isPunctuationPanelShown()) {
+			if (!validateOnly) {
+				suggestionOps.scrollTo(down ? PUNCTUATION_GRID_COLUMNS : -PUNCTUATION_GRID_COLUMNS);
+			}
+			return true;
+		}
+
 		if (super.onHotkey(keyCode, repeat, validateOnly)) {
 			return true;
 		}

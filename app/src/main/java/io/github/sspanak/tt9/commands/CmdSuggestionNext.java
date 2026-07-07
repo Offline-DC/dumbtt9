@@ -41,6 +41,13 @@ public class CmdSuggestionNext implements Command {
 	public static void scrollSuggestions(@NonNull TraditionalT9 tt9, boolean backward) {
 		tt9.getSuggestionOps().cancelDelayedAccept();
 		tt9.getSuggestionOps().scrollTo(backward ? -1 : 1);
+
+		// KT9 fork: in the punctuation grid, navigating only highlights the character — it is NOT
+		// previewed in the text field. It gets inserted only when the user presses Enter/OK.
+		if (tt9.getInputMode().isPunctuationPanelShown()) {
+			return;
+		}
+
 		tt9.getInputMode().setWordStem(tt9.getSuggestionOps().getCurrent(), true);
 		if (InputModeKind.isRecomposing(tt9.getInputMode())) {
 			tt9.getAppHacks().setComposingTextPartsWithHighlightedJoining(tt9.getInputMode().getWordStem() + tt9.getSuggestionOps().getCurrent(), tt9.getInputMode().getRecomposingSuffix());

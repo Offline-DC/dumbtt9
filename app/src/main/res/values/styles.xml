@@ -78,10 +78,11 @@
 
 	<style name="TTheme.Keyboard.TopSeparator">
 		<item name="android:layout_margin">0dp</item>
-		<item name="android:layout_height">1dp</item>
+		<!-- KT9 fork: remove the top separator line between the keyboard and the text field. -->
+		<item name="android:layout_height">0dp</item>
 		<item name="android:layout_width">match_parent</item>
 
-		<item name="android:background">@color/keyboard_top_separator</item>
+		<item name="android:background">@android:color/transparent</item>
 	</style>
 
 	<style name="TTheme.Bumper.TopSeparator" parent="TTheme.Keyboard.TopSeparator">
@@ -154,9 +155,23 @@
 		<item name="android:layout_height">match_parent</item>
 		<item name="android:layout_width">match_parent</item>
 
+		<!-- KT9 fork: auto-shrink long status text (e.g. the voice "speak now (press * when done)" prompt)
+		     so it fits on one line, while short labels like [ en ] / [ TT9 ] stay at the full size. -->
+		<item name="android:maxLines">1</item>
+		<item name="android:autoSizeTextType">uniform</item>
+		<item name="android:autoSizeMinTextSize">8sp</item>
+		<item name="android:autoSizeMaxTextSize">@dimen/status_bar_text_size</item>
+		<item name="android:autoSizeStepGranularity">1sp</item>
+
 		<item name="android:textSize">@dimen/status_bar_text_size</item>
-		<item name="android:textStyle">italic</item>
 		<item name="android:textColor">?attr/colorKeyboardText</item>
+		<!-- KT9 fork: brand font (Helvetica Now). -->
+		<item name="android:fontFamily">@font/helvetica_now</item>
+		<item name="android:includeFontPadding">false</item>
+		<!-- KT9 fork: equal padding above and below the [ mode ] label so it sits centered with the same
+		     gap top and bottom. -->
+		<item name="android:paddingTop">4dp</item>
+		<item name="android:paddingBottom">4dp</item>
 	</style>
 
 	<style name="TTheme.MainSmall.StatusBar.SuggestionList" parent="">
@@ -169,10 +184,18 @@
 
 	<style name="TTheme.MainSmall.StatusBar.SuggestionList.Item" parent="">
 		<item name="android:gravity">center</item>
-		<item name="android:layout_width">wrap_content</item>
+		<!-- KT9 fork: fill the cell (width + height) and center the glyph. The item container's size is
+		     set per-mode by the adapter (grid cell vs. compact row), so match_parent centers correctly. -->
+		<item name="android:layout_width">match_parent</item>
 		<item name="android:layout_height">match_parent</item>
-		<item name="android:paddingLeft">@dimen/main_small_suggestion_spacing_horizontal</item>
-		<item name="android:paddingRight">@dimen/main_small_suggestion_spacing_horizontal</item>
+		<!-- KT9 fork: horizontal padding for word cells (letters/grid use minimal padding via the adapter). -->
+		<item name="android:paddingLeft">8sp</item>
+		<item name="android:paddingRight">8sp</item>
+		<!-- KT9 fork: a small bottom padding nudges the centered glyphs up (they render slightly low
+		     otherwise). Font padding is left on so tall glyphs like "@" aren't clipped. -->
+		<item name="android:paddingBottom">2dp</item>
+		<!-- KT9 fork: brand font (Helvetica Now). -->
+		<item name="android:fontFamily">@font/helvetica_now</item>
 
 		<item name="android:textSize">@dimen/status_bar_text_size</item>
 	</style>

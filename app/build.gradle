@@ -133,7 +133,7 @@ android {
 	compileSdk = 36
 
 	defaultConfig {
-		applicationId = PACKAGE_NAME
+		applicationId = APPLICATION_ID
 		buildFeatures.buildConfig = true
 		minSdk = 24
 		targetSdk = 36
@@ -149,12 +149,34 @@ android {
 		vectorDrawables.generatedDensities = []
 	}
 
+	signingConfigs {
+		release {
+			// KT9/Dumb TT9 fork: the CI beta/stable release workflows decode the shared offline-shared.jks
+			// from the KEYSTORE_BASE64 secret to a file and pass its path in KEYSTORE_PATH (plus the three
+			// passwords) as env vars. Local builds leave these unset and fall back to debug signing, so a
+			// local `assembleLiteRelease` without secrets still works.
+			def ksPath = System.getenv("KEYSTORE_PATH")
+			if (ksPath != null) {
+				storeFile file(ksPath)
+				storePassword System.getenv("KEYSTORE_PASSWORD")
+				keyAlias System.getenv("KEY_ALIAS")
+				keyPassword System.getenv("KEY_PASSWORD")
+			}
+		}
+	}
+
 	buildTypes {
 		debug {
 			buildConfigField 'String', 'VERSION_FULL', "\"${getVersionString('debug')}\""
 		}
 		release {
 			buildConfigField 'String', 'VERSION_FULL', "\"${getVersionString('release')}\""
+
+			// KT9/Dumb TT9 fork: only sign with the release key when CI provided the keystore, so a local
+			// release build without the secrets set doesn't fail.
+			if (System.getenv("KEYSTORE_PATH") != null) {
+				signingConfig signingConfigs.release
+			}
 
 			debuggable = false
 			jniDebuggable = false

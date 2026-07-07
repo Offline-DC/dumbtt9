@@ -13,6 +13,7 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.DividerItemDecoration;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -33,6 +34,9 @@ public class SuggestionsBar {
 	public static final String CLIPBOARD_SUGGESTION_SUFFIX = "\u200B...\u200B";
 	public static final String SHOW_GROUP_0_SUGGESTION = "(…\u200A)";
 	public static final String SHOW_GROUP_1_SUGGESTION = "(…\u200B)";
+
+	// KT9 fork: the punctuation grid is a fixed 7 columns; extra characters wrap to new rows.
+	private static final int PUNCTUATION_GRID_COLUMNS = 7;
 
 	private final String SHOW_MORE_SUGGESTION = "(...)";
 	private final String STEM_SUFFIX = "… +";
@@ -55,6 +59,8 @@ public class SuggestionsBar {
 	@NonNull private final Runnable onItemClick;
 	@NonNull private final Runnable onItemLongClick;
 	@Nullable private final RecyclerView mView;
+	@NonNull private final ResizableMainView punctuationMainView;
+	private boolean isPunctuationGrid = false;
 	private final SettingsStore settings;
 	private SuggestionsAdapter mSuggestionsAdapter;
 	private Vibration vibration;
@@ -66,6 +72,7 @@ public class SuggestionsBar {
 		this.onItemClick = onItemClick;
 		this.onItemLongClick = onItemLongClick;
 		this.settings = settings;
+		this.punctuationMainView = mainView;
 
 		mView = mainView.getView() != null ? mainView.getView().findViewById(R.id.suggestions_bar) : null;
 		if (mView != null) {
@@ -75,6 +82,7 @@ public class SuggestionsBar {
 
 			initDataAdapter(context);
 			initSeparator(context);
+			addGridDivider();
 			configureAnimation();
 			setVisible(settings.getShowSuggestions());
 			vibration = new Vibration(settings, mView);
@@ -124,29 +132,63 @@ public class SuggestionsBar {
 	}
 
 
+	// KT9 fork: draw grid lines around every cell while the punctuation grid is showing (a cell
+	// border on each item). Inert for the normal single-row suggestions (not a GridLayoutManager).
+	private void addGridDivider() {
+		if (mView == null) {
+			return;
+		}
+
+		final android.graphics.Paint paint = new android.graphics.Paint();
+		paint.setStyle(android.graphics.Paint.Style.STROKE);
+		paint.setColor(suggestionSeparatorColor);
+		paint.setStrokeWidth(Math.max(1f, mView.getResources().getDisplayMetrics().density));
+
+		mView.addItemDecoration(new RecyclerView.ItemDecoration() {
+			@Override
+			public void onDrawOver(@NonNull android.graphics.Canvas c, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
+				RecyclerView.LayoutManager lm = parent.getLayoutManager();
+				float w = parent.getWidth();
+				float h = parent.getHeight();
+
+				if (lm instanceof GridLayoutManager) {
+					// Punctuation grid: a vertical line per column boundary (full height), plus a
+					// horizontal line at the top and bottom of every visible row so the lines scroll
+					// correctly with the rows.
+					int cols = ((GridLayoutManager) lm).getSpanCount();
+					for (int col = 1; col < cols; col++) {
+						float x = w * col / cols;
+						c.drawLine(x, 0, x, h, paint);
+					}
+					for (int i = 0; i < parent.getChildCount(); i++) {
+						View child = parent.getChildAt(i);
+						c.drawLine(0, child.getTop(), w, child.getTop(), paint);
+						c.drawLine(0, child.getBottom(), w, child.getBottom(), paint);
+					}
+				} else {
+					// Normal single row: close every cell — a line on the right of each item (incl. the
+					// last, which closes its cell) plus a line on the left of the first item.
+					for (int i = 0; i < parent.getChildCount(); i++) {
+						View child = parent.getChildAt(i);
+						c.drawLine(child.getRight(), child.getTop(), child.getRight(), child.getBottom(), paint);
+						if (i == 0) {
+							c.drawLine(child.getLeft(), child.getTop(), child.getLeft(), child.getBottom(), paint);
+						}
+					}
+				}
+			}
+		});
+	}
+
+
 	private void initSeparator(Context context) {
 		if (mView == null) {
 			return;
 		}
 
+		// KT9 fork: the androidx DividerItemDecoration draws doubled/misplaced lines in a grid, so all
+		// separators (both the normal single row and the punctuation grid) are drawn by addGridDivider().
 		suggestionSeparatorColor = settings.getSuggestionSeparatorColor();
-		// Extra XML is required instead of a ColorDrawable object, because setting the highlight color
-		// erases the borders defined using the ColorDrawable.
-		Drawable separatorDrawable = ContextCompat.getDrawable(context, R.drawable.suggestion_separator);
-		if (separatorDrawable == null) {
-			return;
-		}
-
-		separatorDrawable.setColorFilter(suggestionSeparatorColor, PorterDuff.Mode.SRC_ATOP);
-
-		DividerItemDecoration separator = new DividerItemDecoration(mView.getContext(), RecyclerView.HORIZONTAL);
-		separator.setDrawable(separatorDrawable);
-
-		int decorations = mView.getItemDecorationCount();
-		if (decorations > 0) {
-			mView.removeItemDecorationAt(decorations - 1);
-		}
-		mView.addItemDecoration(separator);
 	}
 
 
@@ -284,9 +326,82 @@ public class SuggestionsBar {
 		boolean onlySpecialChars = newSuggestions != null && !newSuggestions.isEmpty() && !(new Text(newSuggestions.get(0)).isAlphabetic());
 		addManyVisible(newSuggestions, mView == null || onlySpecialChars ? Integer.MAX_VALUE : SettingsStore.SUGGESTIONS_MAX);
 
+		// KT9 fork: only the key-1/"*" punctuation set becomes the 2-row grid. It is the only panel that
+		// starts with the return key ("\n"), so other special-char panels (e.g. the 0/space key) stay a
+		// normal single row.
+		boolean isPunctuationSet = newSuggestions != null && !newSuggestions.isEmpty() && "\n".equals(newSuggestions.get(0));
+		updatePunctuationGrid(isPunctuationSet);
+
+		// KT9 fork: single-letter suggestions (a b c...) get fixed uniform cells so nothing shifts or
+		// scrunches while navigating; words keep variable-width cells.
+		mSuggestionsAdapter.setLetterMode(!onlySpecialChars && allSingleCharacters(visibleSuggestions), letterCellWidth());
+
 		selectedIndex = Math.max(Math.min(selectedIndex, visibleSuggestions.size() - 1), 0);
 
 		render();
+	}
+
+
+	private static boolean allSingleCharacters(@NonNull List<String> items) {
+		if (items.isEmpty()) {
+			return false;
+		}
+		for (String s : items) {
+			if (s == null || s.length() != 1) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+
+	private int letterCellWidth() {
+		return mView == null ? 0 : Math.round(40 * mView.getResources().getDisplayMetrics().density);
+	}
+
+
+	/**
+	 * KT9 fork: switch the suggestion list between a single horizontal row (normal) and a 2-row grid
+	 * (punctuation). When it toggles, poke the main view so the keyboard grows/shrinks to fit the
+	 * extra row (MainLayoutTray.getStatusBarHeight is punctuation-aware).
+	 */
+	private void updatePunctuationGrid(boolean useGrid) {
+		if (mView == null || useGrid == isPunctuationGrid) {
+			return;
+		}
+		isPunctuationGrid = useGrid;
+		mSuggestionsAdapter.setGridMode(useGrid, computeGridHeight() / 2);
+
+		android.view.ViewGroup.LayoutParams lp = mView.getLayoutParams();
+		if (useGrid) {
+			// Fixed 7-column, row-major fill: extra characters flow into new rows below (not extra
+			// columns), so the grid grows downward and scrolls, with 2 rows visible at a time.
+			mView.setLayoutManager(new GridLayoutManager(mView.getContext(), PUNCTUATION_GRID_COLUMNS, RecyclerView.VERTICAL, false));
+			// Explicit height so exactly two rows are given room; the rest scroll into view.
+			lp.height = computeGridHeight();
+			// Yellow scrollbar on the right (matches the highlight color) while the grid is showing.
+			mView.setVerticalScrollBarEnabled(true);
+			mView.setScrollbarFadingEnabled(false);
+		} else {
+			mView.setLayoutManager(new LinearLayoutManager(mView.getContext(), RecyclerView.HORIZONTAL, false));
+			lp.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+			mView.setVerticalScrollBarEnabled(false);
+		}
+		mView.setLayoutParams(lp);
+
+		// Poke the main view so the keyboard grows/shrinks to fit one vs two rows. Deferred so it
+		// runs after the current layout pass.
+		displayHandler.post(punctuationMainView::render);
+	}
+
+
+	// KT9 fork: the 2-row punctuation grid height, computed from the text size (same formula as
+	// MainLayoutTray.getStatusBarHeight) so the RecyclerView and the keyboard height always match.
+	private int computeGridHeight() {
+		float textSize = mView.getResources().getDimension(R.dimen.status_bar_text_size);
+		float padding = Math.max(textSize * 0.45f, 1f);
+		int oneRow = Math.round((padding + textSize) * settings.getSuggestionFontScale());
+		return Math.round(oneRow * SettingsStore.PUNCTUATION_GRID_ROWS_FACTOR);
 	}
 
 
@@ -385,7 +500,8 @@ public class SuggestionsBar {
 		}
 
 		mSuggestionsAdapter.resetItems(selectedIndex);
-		if (isVisible && selectedIndex > 0) {
+		// KT9 fork: never scroll the punctuation grid (all characters are visible; scrolling shifts them).
+		if (isVisible && selectedIndex > 0 && !isPunctuationGrid) {
 			mView.scrollToPosition(selectedIndex);
 		}
 	}
@@ -445,13 +561,44 @@ public class SuggestionsBar {
 			return;
 		}
 
+		final int size = visibleSuggestions.size();
+
+		// KT9 fork: punctuation grid navigation.
+		if (isPunctuationGrid) {
+			final int cols = PUNCTUATION_GRID_COLUMNS;
+			if (Math.abs(increment) == cols) {
+				// Vertical move (d-pad up/down): keep the SAME column and wrap top<->bottom. The last row
+				// may be partial, so when the target cell in this column does not exist, jump to the
+				// nearest existing cell in the same column (top for down, previous row for up).
+				final int rows = (size + cols - 1) / cols;
+				int col = selectedIndex % cols;
+				int row = selectedIndex / cols;
+				if (increment > 0) {
+					row = (row + 1) % rows;
+					if (row * cols + col >= size) {
+						row = 0; // wrapped onto the partial last row's missing cell -> top of the column
+					}
+				} else {
+					row = (row - 1 + rows) % rows;
+					if (row * cols + col >= size) {
+						row = (row - 1 + rows) % rows; // skip the partial last row's missing cell
+					}
+				}
+				selectedIndex = row * cols + col;
+			} else {
+				// Horizontal move (d-pad left/right): step through reading order, wrapping at the ends.
+				selectedIndex = ((selectedIndex + increment) % size + size) % size;
+			}
+			return;
+		}
+
 		selectedIndex = selectedIndex + increment;
-		if (selectedIndex == visibleSuggestions.size()) {
+		if (selectedIndex == size) {
 			selectedIndex = containsStem() ? 1 : 0;
 		} else if (selectedIndex < 0) {
-			selectedIndex = visibleSuggestions.size() - 1;
+			selectedIndex = size - 1;
 		} else if (selectedIndex == 0 && containsStem()) {
-			selectedIndex = visibleSuggestions.size() - 1;
+			selectedIndex = size - 1;
 		}
 	}
 
@@ -481,6 +628,44 @@ public class SuggestionsBar {
 			return;
 		}
 
+		// KT9 fork: punctuation grid — snap-scroll by whole rows. Keep the currently visible rows fixed
+		// while the highlight moves among them, and only when the selected row falls outside the viewport
+		// do we scroll, snapping a whole row to the top. This avoids the per-move nudge/jitter and never
+		// leaves a row half-shown (which used to make the highlight look deselected).
+		if (isPunctuationGrid && mView.getLayoutManager() instanceof GridLayoutManager) {
+			GridLayoutManager glm = (GridLayoutManager) mView.getLayoutManager();
+			int cols = glm.getSpanCount();
+			int rowHeight = Math.max(1, computeGridHeight() / 2);
+			int viewH = mView.getHeight() > 0 ? mView.getHeight() : computeGridHeight();
+			int visibleRows = Math.max(1, Math.round((float) viewH / rowHeight));
+			int selRow = selectedIndex / cols;
+			int firstPos = glm.findFirstVisibleItemPosition();
+			int topRow = firstPos < 0 ? 0 : firstPos / cols;
+			int newTop = topRow;
+			if (selRow < topRow) {
+				newTop = selRow;
+			} else if (selRow > topRow + visibleRows - 1) {
+				newTop = selRow - (visibleRows - 1);
+			}
+			if (newTop != topRow) {
+				glm.scrollToPositionWithOffset(newTop * cols, 0);
+			}
+			lastScrollIndex = selectedIndex;
+			return;
+		}
+
+		// KT9 fork: only scroll when the selected item is off-screen. Navigating among already-visible
+		// items must not scroll — otherwise the row shifts and the cells appear to change.
+		if (mView.getLayoutManager() instanceof LinearLayoutManager) {
+			LinearLayoutManager llm = (LinearLayoutManager) mView.getLayoutManager();
+			int first = llm.findFirstCompletelyVisibleItemPosition();
+			int last = llm.findLastCompletelyVisibleItemPosition();
+			if (first >= 0 && selectedIndex >= first && selectedIndex <= last) {
+				lastScrollIndex = selectedIndex;
+				return;
+			}
+		}
+
 		boolean smooth = settings.getSuggestionSmoothScroll() && Math.abs(selectedIndex - lastScrollIndex) < SettingsStore.SUGGESTIONS_MAX;
 		mView.setItemAnimator(smooth ? animator : null);
 		mView.scrollToPosition(containsStem() && selectedIndex == 1 ? 0 : selectedIndex);
@@ -503,6 +688,18 @@ public class SuggestionsBar {
 		mSuggestionsAdapter.setBackgroundHighlight(settings.getSuggestionSelectedBackground());
 		suggestionSeparatorColor = settings.getSuggestionSeparatorColor();
 		initSeparator(mView.getContext());
+
+		// KT9 fork: the punctuation-grid scrollbar thumb, tinted to the highlight yellow.
+		if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+			float density = mView.getResources().getDisplayMetrics().density;
+			android.graphics.drawable.GradientDrawable thumb = new android.graphics.drawable.GradientDrawable();
+			thumb.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+			thumb.setColor(settings.getSuggestionSelectedBackground());
+			thumb.setCornerRadius(2f * density);
+			thumb.setSize(Math.round(3f * density), Math.round(3f * density));
+			mView.setVerticalScrollbarThumbDrawable(thumb);
+			mView.setScrollBarSize(Math.round(4f * density));
+		}
 
 		setBackground(true);
 	}
