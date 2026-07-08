@@ -46,7 +46,7 @@ jobs:
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "${{ github.workspace }}/keystore.jks"
 
-      - name: Build signed lite release APK
+      - name: Build signed full release APK
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/keystore.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -54,14 +54,17 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleLiteRelease
+          # Full build (bundles the English dictionary). Because the app is
+          # English-only, "full" is still small — and it avoids the runtime
+          # dictionary download the lite build depends on.
+          ./gradlew assembleFullRelease
 
       - name: Locate APK
         id: apk
         run: |
-          SRC=$(find app/build/outputs/apk/lite/release -name "*.apk" | head -1)
+          SRC=$(find app/build/outputs/apk/full/release -name "*.apk" | head -1)
           if [ -z "$SRC" ]; then
-            echo "::error::No APK found under app/build/outputs/apk/lite/release"
+            echo "::error::No APK found under app/build/outputs/apk/full/release"
             exit 1
           fi
           cp "$SRC" "${{ github.workspace }}/dumb-tt9-beta.apk"
