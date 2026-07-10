@@ -184,7 +184,11 @@ abstract public class StandardInputType {
 				// normal alphabetic keyboard, and assume that we should
 				// be doing predictive text (showing candidates as the
 				// user types).
-				if (!isPassword()) {
+				// Email fields are excluded alongside passwords: an email address isn't
+				// made of dictionary words, so predictive is a dead mode there (TT9 already
+				// suppresses its suggestions for email), and per product decision it should
+				// not appear in the input-mode cycle for email / "email or phone" fields.
+				if (!isPassword() && !isEmail()) {
 					allowedModes.add(InputMode.MODE_PREDICTIVE);
 				}
 

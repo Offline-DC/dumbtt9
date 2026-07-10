@@ -47,6 +47,16 @@ public class CmdNextInputMode implements Command {
 		{ InputMode.MODE_PREDICTIVE, InputMode.CASE_UNDEFINED, 0 }, // TT9
 	};
 
+	// Our position in the cycle above, tracked explicitly rather than re-derived from the
+	// input mode on every press. In fields that force a fixed text case (email, password,
+	// no-suggestions), setting the En/EN ABC cases doesn't stick — the field snaps back to
+	// lowercase — so deriving the position from the mode's live case always resolves to the
+	// "en" step, and the cycle can never advance to 123 or predictive. That left users stuck
+	// on lowercase letters, unable to type numbers for a login or password. Static so it
+	// survives the per-keypress command lookups; re-synced from the mode only when the mode
+	// was changed outside this cycle (e.g. focusing a new field), so external changes still win.
+	private static int cycleIndex = -1;
+
 
 	public boolean run(@Nullable TraditionalT9 tt9) {
 		if (tt9 == null) {
@@ -114,7 +124,19 @@ public class CmdNextInputMode implements Command {
 			return null;
 		}
 
-		int nextIndex = (getCurrentStepIndex(tt9, steps) + 1) % steps.size(); // current == -1 starts the cycle at 0
-		return steps.get(nextIndex);
+		// Re-sync our tracked position from the mode ONLY when it no longer matches — i.e. the
+		// mode was changed outside this cycle (new field, another command), or the step list
+		// changed. Within the cycle we trust our own index, so a field that forces the text
+		// case can't drag us back to the "en" step and trap us in the ABC sub-steps.
+		if (
+			cycleIndex < 0
+			|| cycleIndex >= steps.size()
+			|| steps.get(cycleIndex)[0] != tt9.getInputMode().getId()
+		) {
+			cycleIndex = getCurrentStepIndex(tt9, steps);
+		}
+
+		cycleIndex = (cycleIndex + 1) % steps.size(); // -1 (unknown) advances to 0, starting the cycle
+		return steps.get(cycleIndex);
 	}
 }
