@@ -69,9 +69,13 @@ public class AutoSpace {
 		}
 
 		// If the InputConnection timed out, assume we are right after a word and we want a space.
-		// It should be the more convenient option.
+		// It should be the more convenient option — EXCEPT in ABC/multi-tap, where a space between
+		// letters is never wanted (see shouldAddAfterWord below: it would make tapping the same key
+		// twice for the next letter impossible). Apps with a slow or non-standard InputConnection
+		// (e.g. OpenBubbles / smart txt) time out here on every keypress, so without this exception
+		// they get a space after every single letter and multi-tap breaks entirely.
 		if (previousChars.equals(InputConnectionAsync.TIMEOUT_SENTINEL)) {
-			return true;
+			return !InputModeKind.isABC(mode);
 		}
 
 		final Text nextText = new Text(language, nextChars);

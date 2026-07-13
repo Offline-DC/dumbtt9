@@ -168,6 +168,12 @@ android {
 	buildTypes {
 		debug {
 			buildConfigField 'String', 'VERSION_FULL', "\"${getVersionString('debug')}\""
+
+			// Debug builds install as a SEPARATE app (com.offlineinc.dumbtt9.debug) so they sit
+			// alongside the real keyboard instead of replacing it. This means we can test a build on
+			// a real, daily-driver phone by simply switching keyboards — no uninstalling the release
+			// keyboard (which would wipe its settings and learned words) and no risk to the device.
+			applicationIdSuffix '.debug'
 		}
 		release {
 			buildConfigField 'String', 'VERSION_FULL', "\"${getVersionString('release')}\""
