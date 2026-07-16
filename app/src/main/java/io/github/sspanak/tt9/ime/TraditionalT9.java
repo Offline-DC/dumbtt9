@@ -74,7 +74,7 @@ public class TraditionalT9 extends PremiumHandler {
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r21 — KikaIME-match: never hide window (thin bar always) + anchored pill floats above";
+	public static final String KT9_BUILD = "KT9 build r22 — bring keyboard window up when showing the pill (fixes invisible pill where host dismisses keyboard)";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {

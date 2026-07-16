@@ -118,6 +118,11 @@ abstract class UiHandler extends AbstractHandler {
 	public void showModePopup() {
 		InputMode mode = getCurrentInputMode();
 		if (mode != null && settings != null && settings.isModePopupEnabled()) {
+			// The pill is anchored to the keyboard window, so it is only visible when that window is up.
+			// Some hosts (e.g. the launcher home) dismiss the keyboard, leaving the window down — the pill
+			// would then draw into a hidden window (isShowing() true, but nothing visible). Bring the window
+			// up first so the pill always has a real host to float above.
+			forceShowWindow();
 			modePopup.show(this, mode.toString());
 		}
 	}
@@ -229,18 +234,11 @@ abstract class UiHandler extends AbstractHandler {
 
 
 	protected boolean shouldBeVisible() {
-		if (!isTypingPossible()) {
-			return false;
-		}
-		// KT9 fork: on the thin-strip layouts (tray / small, which both hide their soft keys) the visible
-		// strip collapses to nothing when there is nothing worth showing — ABC/123 with no "*"/"1" panel
-		// and no transient message. Hardware keys keep typing and the mode is announced with a popup.
-		// This lives in shouldBeVisible() rather than only onEvaluateInputViewShown() so forceShowWindow()
-		// and onComputeInsets() agree with it.
-		if (!settings.isMainLayoutLarge() && !trayHasContent()) {
-			return false;
-		}
-		return true;
+		// KikaIME-match: the bar is shown whenever typing is possible in the current field (never gated on
+		// "has content"). This lets forceShowWindow() bring the window up on demand — e.g. when a mode
+		// changes on the launcher home, so the pill has a real window to float above — and keeps
+		// onComputeInsets() in agreement.
+		return isTypingPossible();
 	}
 
 
