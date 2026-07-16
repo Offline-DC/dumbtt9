@@ -27,6 +27,9 @@ abstract class UiHandler extends AbstractHandler {
 
 	protected int displayTextCase = InputMode.CASE_UNDEFINED;
 	protected boolean isMainViewShown = false;
+	// KikaIME-style: whether the candidates bar is currently shown (tray/small layout). Read by
+	// onComputeInsets so it reserves the bar's height only while the bar is actually visible.
+	protected boolean trayBarShown = false;
 	protected MainView mainView = null;
 	@NonNull private final ModePopup modePopup = new ModePopup();
 
@@ -100,10 +103,14 @@ abstract class UiHandler extends AbstractHandler {
 
 		trayRefreshing = true;
 		try {
-			// KikaIME-style: the bar stays shown whenever a text field is focused; we never hideWindow().
-			// Just keep the framework's input-view state in sync (onEvaluateInputViewShown reports shown).
-			// The suggestion strip fills only while composing; the mode pill floats above the bar.
+			// KikaIME structure: keep the (empty) input view / window shown so the mode pill always has a live
+			// host, then show or hide the BAR via the candidates view. Android collapses the candidates area to
+			// zero height when hidden — with no leftover strip and no window churn — so the bar appears only
+			// for real content (voice, the "*" panel, or active TT9 suggestions) and is gone otherwise.
 			updateInputViewShown();
+			final boolean show = trayHasContent();
+			trayBarShown = show;
+			setCandidatesViewShown(show);
 		} finally {
 			trayRefreshing = false;
 		}
@@ -186,6 +193,19 @@ abstract class UiHandler extends AbstractHandler {
 
 	public void setCurrentView() {
 		setInputView(onCreateInputView());
+
+		if (settings != null && settings.isMainLayoutLarge()) {
+			// Large layouts keep the bar in the input view — make sure no stray candidates view lingers.
+			setCandidatesViewShown(false);
+			return;
+		}
+
+		// Tray/small (KikaIME structure): the bar is the candidates view. onCreateCandidatesView() rebuilds a
+		// fresh bar, so set it here (the framework would otherwise create its own copy that goes stale after
+		// tt9 re-renders), then show it only if there is content right now.
+		setCandidatesView(onCreateCandidatesView());
+		trayBarShown = trayHasContent();
+		setCandidatesViewShown(trayBarShown);
 	}
 
 

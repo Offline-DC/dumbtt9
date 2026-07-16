@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	KikaIME-style: on the hardware-keypad (tray/small) layout the IME INPUT view is empty. The visible
+	suggestion/mode bar lives in the CANDIDATES view instead, which Android can collapse to zero height on
+	its own (setCandidatesViewShown) without hiding the window — so the bar disappears when there is no
+	content while the floating mode pill still has a live window to anchor to. Zero height + transparent so
+	it reserves nothing and is invisible.
+-->
+<View xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="0dp"
+	android:background="@android:color/transparent" />

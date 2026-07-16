@@ -11,6 +11,7 @@ import androidx.annotation.NonNull;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import io.github.sspanak.tt9.R;
 import io.github.sspanak.tt9.db.DataStore;
 import io.github.sspanak.tt9.db.words.DictionaryLoader;
 import io.github.sspanak.tt9.hacks.InputType;
@@ -45,14 +46,36 @@ public class TraditionalT9 extends PremiumHandler {
 
 	@Override
 	public View onCreateInputView() {
-		// This may get called even when not switching IMEs, but we can't reuse the previous view
-		// because it will cause: "IllegalStateException: The specified child already has a parent"
+		// KikaIME-style: on the hardware-keypad (tray/small) layout the INPUT view is empty — the visible
+		// suggestion/mode bar lives in the CANDIDATES view (onCreateCandidatesView), which Android can
+		// collapse to zero height on its own without hiding the window. On the large touch layouts the soft
+		// keyboard genuinely IS the input view, so keep the original behavior there.
+		if (settings != null && settings.isMainLayoutLarge()) {
+			return buildBarView();
+		}
+		return getLayoutInflater().inflate(R.layout.input_view_empty, null);
+	}
+
+
+	@Override
+	public View onCreateCandidatesView() {
+		// Tray/small: the bar is the candidates view (toggled with setCandidatesViewShown). Large layouts
+		// keep the bar in the input view, so they have no candidates view.
+		if (settings != null && settings.isMainLayoutLarge()) {
+			return null;
+		}
+		return buildBarView();
+	}
+
+
+	// Builds a fresh, parentless bar view. forceCreate() is required because the framework may re-create
+	// the view and reusing the old one throws "IllegalStateException: The specified child already has a parent".
+	private View buildBarView() {
 		mainView.forceCreate();
 		initTray();
 		statusBar.setText(mInputMode);
 		suggestionOps.set(mInputMode.getSuggestions(), mInputMode.containsGeneratedSuggestions());
 		mainView.render();
-
 		return mainView.getView();
 	}
 
@@ -60,21 +83,36 @@ public class TraditionalT9 extends PremiumHandler {
 	@Override
 	public void onComputeInsets(Insets outInsets) {
 		super.onComputeInsets(outInsets);
-		// KT9 fork: some apps (e.g. Messages) leave a thin strip of their own (white) background between
-		// their text box and the keyboard. We can't cover it by growing the keyboard (the app just re-opens
-		// the gap higher up). Instead we report the content region as reaching a few px BELOW the visible
-		// top of the keyboard, so the app draws its content — and its own bottom margin — down behind our
-		// opaque keyboard, hiding the strip. contentTopInsets is measured from the top of the IME window;
-		// a larger value means the app may extend that many px into the keyboard's top edge.
-		if (shouldBeVisible()) {
+
+		// Large touch layouts: unchanged — cover the thin app gap above the keyboard when it is shown.
+		if (settings != null && settings.isMainLayoutLarge()) {
+			if (shouldBeVisible()) {
+				outInsets.contentTopInsets = outInsets.visibleTopInsets + APP_GAP_COVER_PX;
+			}
+			return;
+		}
+
+		// Tray/small (KikaIME-style): the bar is the candidates view.
+		// - When the bar is SHOWN, cover the thin white strip some apps (e.g. Messages) leave above it, by
+		//   reporting the content region a few px into the bar's top edge. (super already set visibleTopInsets
+		//   to the top of the visible candidates bar.)
+		// - When the bar is HIDDEN, reserve NOTHING so the host app uses the full screen — otherwise a blank
+		//   strip would linger where the bar was.
+		if (trayBarShown) {
 			outInsets.contentTopInsets = outInsets.visibleTopInsets + APP_GAP_COVER_PX;
+		} else {
+			final int full = getWindow() != null && getWindow().getWindow() != null
+				? getWindow().getWindow().getDecorView().getHeight()
+				: outInsets.visibleTopInsets;
+			outInsets.contentTopInsets = full;
+			outInsets.visibleTopInsets = full;
 		}
 	}
 
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r22 — bring keyboard window up when showing the pill (fixes invisible pill where host dismisses keyboard)";
+	public static final String KT9_BUILD = "KT9 build r23 — KikaIME structure: empty input view + bar in candidates view (setCandidatesViewShown)";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {
