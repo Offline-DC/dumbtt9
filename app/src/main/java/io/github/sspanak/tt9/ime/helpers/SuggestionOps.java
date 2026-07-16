@@ -13,6 +13,8 @@ import java.util.function.Consumer;
 
 import io.github.sspanak.tt9.hacks.AppHacks;
 import io.github.sspanak.tt9.hacks.InputType;
+import io.github.sspanak.tt9.ime.modes.InputMode;
+import io.github.sspanak.tt9.ime.modes.InputModeKind;
 import io.github.sspanak.tt9.languages.Language;
 import io.github.sspanak.tt9.languages.LanguageKind;
 import io.github.sspanak.tt9.preferences.settings.SettingsStore;
@@ -33,6 +35,12 @@ public class SuggestionOps {
 	@NonNull private TextField textField;
 	@Nullable private final SettingsStore settings;
 	@Nullable private StatusBar statusBar;
+	// KT9 fork: the current input mode, kept in sync on every mode change so setVisibility() can
+	// decide whether the options row is allowed. It stays null-safe: null means "no restriction".
+	@Nullable private InputMode inputMode;
+	// KT9 fork: fired whenever the suggestion list changes (set / clear / guesses), so the tray
+	// keyboard can re-evaluate its own visibility — e.g. hide the strip the instant a word is accepted.
+	@Nullable private Runnable onContentChanged;
 
 
 	public SuggestionOps(@Nullable InputMethodService ims, @Nullable SettingsStore settings, @Nullable ResizableMainView mainView, @Nullable AppHacks appHacks, @Nullable InputType inputType, @Nullable TextField textField, @Nullable StatusBar statusBar, @Nullable Consumer<String> onDelayedAccept, @Nullable Runnable onSuggestionClick, @Nullable Runnable onSuggestionLongClick) {
@@ -301,8 +309,32 @@ public class SuggestionOps {
 	}
 
 
+	public void setInputMode(@Nullable InputMode inputMode) {
+		this.inputMode = inputMode;
+	}
+
+
+	public void setOnContentChanged(@Nullable Runnable onContentChanged) {
+		this.onContentChanged = onContentChanged;
+	}
+
+
+	/**
+	 * KT9 fork: the options row is only allowed in predictive (TT9) mode or while a special-character
+	 * / punctuation panel (the "*" and "1" keys) is showing. In ABC / 123 the a/b/c cycle is hidden.
+	 * A null mode means "unknown", so we do not restrict.
+	 */
+	private boolean modeAllowsSuggestions() {
+		return inputMode == null || InputModeKind.isPredictive(inputMode) || inputMode.isSpecialCharPanelShown();
+	}
+
+
 	private void setVisibility(@Nullable SettingsStore settings, boolean willBeEmpty, boolean forceVisible) {
-		final boolean areSuggestionsVisible = isInputLimited || forceVisible || (settings != null && settings.getShowSuggestions());
+		// KT9 fork: "forceVisible" content (clipboard, command results) always shows; everything else
+		// is additionally gated by the current mode so the a/b/c options row stays hidden in ABC/123.
+		final boolean areSuggestionsVisible =
+			forceVisible
+			|| ((isInputLimited || (settings != null && settings.getShowSuggestions())) && modeAllowsSuggestions());
 
 		if (suggestionBar != null) {
 			suggestionBar.setVisible(areSuggestionsVisible);
@@ -310,6 +342,11 @@ public class SuggestionOps {
 
 		if (statusBar != null) {
 			statusBar.setShown(willBeEmpty || !areSuggestionsVisible);
+		}
+
+		// KT9 fork: let the IME re-check whether the thin-strip keyboard should now be shown or hidden.
+		if (onContentChanged != null) {
+			onContentChanged.run();
 		}
 	}
 }

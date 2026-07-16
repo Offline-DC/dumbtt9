@@ -176,6 +176,13 @@ abstract public class InputMode {
 		return digitSequence.equals(seq.CHARS_1_SEQUENCE) || digitSequence.equals(seq.CHARS_GROUP_1_SEQUENCE);
 	}
 
+	// KT9 fork: true while any special-character or punctuation panel is showing (the "1" and "*"
+	// key panels: punctuation, special characters, emoji and their sub-groups). Used to decide when
+	// the suggestion/options row should be visible in non-predictive modes.
+	public boolean isSpecialCharPanelShown() {
+		return seq.isAnySpecialCharSequence(digitSequence);
+	}
+
 	public int getFirstKey() { return digitSequence.isEmpty() ? -1 : digitSequence.charAt(0) - '0'; }
 	public int getSequenceLength() { return digitSequence.length(); } // The number of key presses for the current word.
 	public int getAutoAcceptTimeout() { return autoAcceptTimeout; }

@@ -7,8 +7,10 @@ import androidx.annotation.Nullable;
 
 import io.github.sspanak.tt9.hacks.AppHacks;
 import io.github.sspanak.tt9.ime.modes.InputMode;
+import io.github.sspanak.tt9.ime.modes.InputModeKind;
 import io.github.sspanak.tt9.languages.Language;
 import io.github.sspanak.tt9.preferences.settings.SettingsStore;
+import io.github.sspanak.tt9.ui.ModePopup;
 import io.github.sspanak.tt9.ui.StatusIcon;
 import io.github.sspanak.tt9.ui.main.MainView;
 import io.github.sspanak.tt9.ui.tray.StatusBar;
@@ -26,6 +28,13 @@ abstract class UiHandler extends AbstractHandler {
 	protected int displayTextCase = InputMode.CASE_UNDEFINED;
 	protected boolean isMainViewShown = false;
 	protected MainView mainView = null;
+	@NonNull private final ModePopup modePopup = new ModePopup();
+
+	// KT9 fork: re-entrancy guard. Toggling the input view can synchronously call back into
+	// refreshTrayVisibility (updateInputViewShown → onFinishInputView → clear → setVisibility →
+	// onContentChanged → refreshTrayVisibility). This flag drops those nested calls to prevent an
+	// infinite recursion / StackOverflow.
+	private boolean trayRefreshing = false;
 	protected StatusBar statusBar = null;
 
 
@@ -38,7 +47,92 @@ abstract class UiHandler extends AbstractHandler {
 		}
 
 		setInputField(getCurrentInputEditorInfo());
+		// KT9 fork: report visible only when the strip has content. At rest we fully hide the IME window
+		// (see refreshTrayVisibility) because on this device collapsing the strip's content does NOT shrink
+		// the window — it keeps painting a bar. Reporting the same condition here keeps the framework in
+		// agreement so there is no show-then-hide flash on field entry.
 		return isMainViewShown = shouldBeVisible();
+	}
+
+
+	/**
+	 * KT9 fork: hook so the superclass can read the current input mode without depending on the
+	 * subclass that owns it. Overridden in TypingHandler. Defaults to null ("unknown").
+	 */
+	protected InputMode getCurrentInputMode() {
+		return null;
+	}
+
+
+	/**
+	 * KT9 fork: whether the tray keyboard has anything worth showing. True in predictive (TT9) mode,
+	 * while a special-character / punctuation panel is open, or while a transient message is showing.
+	 * Fail-safe: any doubt resolves toward showing, never hiding.
+	 */
+	protected boolean trayHasContent() {
+		final boolean palette = mainView != null && (mainView.isCommandPaletteShown() || mainView.isTextEditingPaletteShown());
+		final boolean message = statusBar != null && statusBar.hasMessage();
+
+		final InputMode mode = getCurrentInputMode();
+		final boolean typing = mode != null && mode.isTyping();
+		final boolean predictive = mode != null && InputModeKind.isPredictive(mode);
+		final boolean panel = mode != null && mode.isSpecialCharPanelShown();
+
+		// Show: palettes, transient messages, an open "*"/"1" special-char panel, or a predictive (TT9)
+		// word actively being composed. We deliberately do NOT also require "has candidates right now":
+		// the momentary empty frames between keystrokes would make the strip collapse and re-expand
+		// (height flicker). It hides the instant composing stops (word accepted -> typing=false) and in
+		// ABC/123 direct typing, which never shows a strip.
+		final boolean result = palette || message || panel || (predictive && typing);
+		Logger.d("KT9bar", "trayHasContent=" + result + " [msg=" + message + " panel=" + panel + " predictive=" + predictive + " typing=" + typing + " mode=" + (mode != null ? mode.toString() : "null") + "]");
+		return result;
+	}
+
+
+	/**
+	 * KT9 fork: re-evaluate whether the thin-strip keyboard (tray / small) should be visible right
+	 * now. Left entirely to the framework on the large touch layouts, whose keys are always shown.
+	 */
+	public void refreshTrayVisibility() {
+		if (settings == null || settings.isMainLayoutLarge() || !SystemSettings.isTT9Selected(this)) {
+			return;
+		}
+		if (trayRefreshing) {
+			return;
+		}
+
+		trayRefreshing = true;
+		try {
+			final boolean visible = shouldBeVisible();
+			final boolean shown = isInputViewShown();
+			Logger.d("KT9bar", "refreshTrayVisibility visible=" + visible + " shown=" + shown);
+			// On this device, collapsing only the strip's content does NOT shrink the IME window — it keeps
+			// painting a black/white bar. The only thing that removes it is fully hiding the window.
+			// hideWindow() finishes the input view, but that is safe here: we hide ONLY when there is nothing
+			// to show (never while composing), so no word is lost; and the trayRefreshing guard blocks the
+			// finish -> clear -> onContentChanged -> refresh recursion that crashed r11. When content
+			// appears we force the window back up.
+			if (visible && !shown) {
+				forceShowWindow();
+			} else if (!visible && shown) {
+				hideWindow();
+			}
+		} finally {
+			trayRefreshing = false;
+		}
+	}
+
+
+	/**
+	 * KT9 fork: announce the current input mode (en / En / EN / 123 / TT9) with a transient popup,
+	 * on the layouts that do not keep a persistent mode label. A single reused toast slot means rapid
+	 * mode/case changes replace each other cleanly instead of stacking.
+	 */
+	public void showModePopup() {
+		InputMode mode = getCurrentInputMode();
+		if (mode != null && settings != null && settings.isModePopupEnabled()) {
+			modePopup.show(this, mode.toString());
+		}
 	}
 
 
@@ -66,6 +160,9 @@ abstract class UiHandler extends AbstractHandler {
 		statusBar.setColorScheme();
 		createSuggestionBar();
 		getSuggestionOps().setColorScheme();
+		// KT9 fork: createSuggestionBar() builds a fresh SuggestionOps, so re-sync the current mode
+		// immediately, otherwise the options-row gating would be disabled until the next mode change.
+		getSuggestionOps().setInputMode(getCurrentInputMode());
 	}
 
 
@@ -88,6 +185,10 @@ abstract class UiHandler extends AbstractHandler {
 		} else if (!isInputViewShown()) {
 			updateInputViewShown();
 		}
+
+		// KT9 fork: apply the initial collapsed/expanded strip state for this field right away (e.g. start
+		// collapsed in ABC/123 idle), so the bar never flashes at full height before the first key press.
+		refreshTrayVisibility();
 	}
 
 
@@ -130,8 +231,29 @@ abstract class UiHandler extends AbstractHandler {
 	}
 
 
-	protected boolean shouldBeVisible() {
+	/**
+	 * KT9 fork: whether typing is possible at all in the current field — i.e. not a passthrough field
+	 * (calculators, etc.) and not the invisible stealth layout. The input view stays "shown" whenever
+	 * this is true, so it inflates once and the strip can be collapsed/expanded by height alone.
+	 */
+	protected boolean isTypingPossible() {
 		return determineInputModeId() != InputMode.MODE_PASSTHROUGH && !settings.isMainLayoutStealth();
+	}
+
+
+	protected boolean shouldBeVisible() {
+		if (!isTypingPossible()) {
+			return false;
+		}
+		// KT9 fork: on the thin-strip layouts (tray / small, which both hide their soft keys) the visible
+		// strip collapses to nothing when there is nothing worth showing — ABC/123 with no "*"/"1" panel
+		// and no transient message. Hardware keys keep typing and the mode is announced with a popup.
+		// This lives in shouldBeVisible() rather than only onEvaluateInputViewShown() so forceShowWindow()
+		// and onComputeInsets() agree with it.
+		if (!settings.isMainLayoutLarge() && !trayHasContent()) {
+			return false;
+		}
+		return true;
 	}
 
 

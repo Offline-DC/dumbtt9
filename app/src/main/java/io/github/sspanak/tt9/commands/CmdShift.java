@@ -4,7 +4,6 @@ import androidx.annotation.Nullable;
 
 import io.github.sspanak.tt9.R;
 import io.github.sspanak.tt9.ime.TraditionalT9;
-import io.github.sspanak.tt9.ui.UI;
 
 public class CmdShift implements Command {
 	public static final String ID = "key_shift";
@@ -45,9 +44,9 @@ public class CmdShift implements Command {
 			tt9.getMainView().render();
 		}
 
-		if (tt9.getSettings().isMainLayoutStealth() && !tt9.getSettings().isStatusIconEnabled()) {
-			UI.toastShortSingle(tt9, tt9.getInputMode().getClass().getSimpleName(), tt9.getInputMode().toString());
-		}
+		// KT9 fork: announce the new text case (en / En / EN) with a popup on the layouts that have no
+		// persistent mode label. Broadened from stealth-only to also cover the tray layout.
+		tt9.showModePopup();
 
 		return true;
 	}

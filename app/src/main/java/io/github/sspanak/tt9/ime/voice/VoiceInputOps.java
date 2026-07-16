@@ -105,6 +105,15 @@ public class VoiceInputOps {
 	public void listen(@Nullable Language language) {
 		this.language = language;
 		if (forceAlternativeInput || recognizerSupport.isAlternativeAvailable(ims)) {
+			// KT9 fork: only open the external voice picker if some app actually handles
+			// ACTION_RECOGNIZE_SPEECH. Otherwise show a message and stay in the keyboard — do NOT launch
+			// our picker activity, which used to steal focus (jumping to the app) and then crash with
+			// ActivityNotFoundException.
+			final String locale = language != null ? getLocale(language) : null;
+			if (createIntent(locale).resolveActivity(ims.getPackageManager()) == null) {
+				onListeningError.accept(new VoiceInputError(ims, VoiceInputError.ERROR_CANNOT_BIND_TO_VOICE_SERVICE));
+				return;
+			}
 			ims.startActivity(VoiceInputPickerActivity.generateShowIntent(ims));
 		} else {
 			recognizerSupport.setLanguage(language).checkOfflineSupport(

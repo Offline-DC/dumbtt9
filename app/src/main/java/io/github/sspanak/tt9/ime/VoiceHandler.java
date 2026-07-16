@@ -82,6 +82,7 @@ abstract class VoiceHandler extends SuggestionHandler {
 		}
 
 		statusBar.setText(R.string.loading);
+		refreshTrayVisibility(); // KT9 fork: make sure the tray is visible to show the voice prompt
 		suggestionOps.cancelDelayedAccept();
 		mInputMode.onAcceptSuggestion(suggestionOps.acceptIncomplete());
 		autoTextCase = new AutoTextCase(settings, new Sequences(), inputType);
@@ -103,6 +104,7 @@ abstract class VoiceHandler extends SuggestionHandler {
 			mainView.render(); // disable the function keys
 		}
 		statusBar.setText(voiceInputOps);
+		refreshTrayVisibility(); // KT9 fork: keep the tray visible while listening
 	}
 
 

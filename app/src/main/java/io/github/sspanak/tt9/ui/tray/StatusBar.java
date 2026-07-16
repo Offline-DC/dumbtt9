@@ -25,7 +25,10 @@ public class StatusBar {
 	@NonNull private final ResizableMainView mainView;
 	@Nullable private final TextView statusView;
 	@NonNull private final SettingsStore settings;
-	@Nullable private String statusText;
+	// KT9 fork: only ever holds transient messages (errors, dictionary loading, voice prompts,
+	// command hints) now. The input mode is shown as a popup instead of a persistent "[ en ]" label,
+	// so there is no mode text here. Empty string == nothing to show.
+	@Nullable private String statusText = "";
 
 	@NonNull private final DictionaryLoadingBar loadingBar;
 	@NonNull private final Runnable onLoadingFinished;
@@ -155,8 +158,33 @@ public class StatusBar {
 	}
 
 
+	/**
+	 * KT9 fork: the input mode (en / En / EN / 123 / TT9) is no longer drawn as a persistent
+	 * "[ en ]" label in the tray. It is announced via a transient popup on every mode/case/language
+	 * change (see TraditionalT9.showModePopup). This method is intentionally a no-op for the visible
+	 * bar, so the many "refresh the mode label" callers no longer paint anything. Use clearText() to
+	 * wipe a transient message and setError()/setText(...) to show one.
+	 */
 	public void setText(InputMode inputMode) {
-		setText("[ " + inputMode.toString() + " ]");
+		// no-op: mode is shown as a popup, not a persistent label
+	}
+
+
+	/**
+	 * KT9 fork: clears any transient message, leaving the tray empty. Replaces the old habit of
+	 * "resetting" the bar by re-drawing the mode label.
+	 */
+	public void clearText() {
+		setText("");
+	}
+
+
+	/**
+	 * KT9 fork: true when a transient message (error / loading / voice / command hint) is currently
+	 * shown. Drives whether the tray keyboard needs to be visible on the tray layout.
+	 */
+	public boolean hasMessage() {
+		return statusText != null && !statusText.isEmpty();
 	}
 
 

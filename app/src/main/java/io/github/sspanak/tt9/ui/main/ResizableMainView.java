@@ -9,12 +9,14 @@ import androidx.annotation.Nullable;
 import io.github.sspanak.tt9.ime.TraditionalT9;
 import io.github.sspanak.tt9.preferences.settings.SettingsStore;
 import io.github.sspanak.tt9.ui.Vibration;
+import io.github.sspanak.tt9.util.Logger;
 import io.github.sspanak.tt9.util.sys.DeviceInfo;
 
 public class ResizableMainView extends StaticMainView implements View.OnAttachStateChangeListener {
 	private Vibration vibration;
 
 	private int height;
+	private boolean trayCollapsed = false;
 	private float resizeStartY;
 	private long lastResizeTime;
 
@@ -56,7 +58,31 @@ public class ResizableMainView extends StaticMainView implements View.OnAttachSt
 
 	@Override
 	public boolean create() {
-		return super.create() && main != null;
+		final boolean created = super.create() && main != null;
+		if (created) {
+			trayCollapsed = false; // a freshly built layout starts at its natural height
+		}
+		return created;
+	}
+
+
+	/**
+	 * KT9 fork: collapse the visible keyboard strip to zero height (hiding the black bar) or restore it
+	 * to the natural height for the current layout. Unlike hideWindow(), this does NOT finish the input
+	 * session, so the word being typed is never cleared and the view is never re-inflated. Idempotent.
+	 */
+	public void setTrayCollapsed(boolean collapsed) {
+		if (main == null) {
+			return;
+		}
+		// ALWAYS apply, no "already in this state" guard. The container's real visibility can be reset
+		// (VISIBLE) by a re-render/re-attach without our flag knowing, and a guarded no-op would then leave
+		// the black bar up. View.setVisibility is a cheap no-op when unchanged, so re-applying is safe.
+		if (trayCollapsed != collapsed) {
+			Logger.d("KT9bar", "setTrayCollapsed -> " + (collapsed ? "GONE" : "VISIBLE"));
+		}
+		trayCollapsed = collapsed;
+		main.setKeyboardVisible(!collapsed);
 	}
 
 

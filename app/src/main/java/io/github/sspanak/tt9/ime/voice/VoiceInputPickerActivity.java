@@ -1,6 +1,7 @@
 package io.github.sspanak.tt9.ime.voice;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -14,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import java.util.ArrayList;
 
+import io.github.sspanak.tt9.R;
 import io.github.sspanak.tt9.ime.TraditionalT9;
 import io.github.sspanak.tt9.languages.Language;
 import io.github.sspanak.tt9.languages.LanguageCollection;
@@ -48,7 +50,17 @@ public class VoiceInputPickerActivity extends AppCompatActivity {
 	private void launchPicker() {
 		final Language language = LanguageCollection.getLanguage(new SettingsStore(this).getInputLanguage());
 		final String locale = language != null ? VoiceInputOps.getLocale(language) : null;
-		launcher.launch(VoiceInputOps.createIntent(locale));
+
+		// KT9 fork: on devices with no app that handles ACTION_RECOGNIZE_SPEECH, launcher.launch()
+		// throws ActivityNotFoundException. Catch it and fail gracefully with a message, instead of
+		// letting the exception crash the whole keyboard.
+		try {
+			launcher.launch(VoiceInputOps.createIntent(locale));
+		} catch (ActivityNotFoundException e) {
+			Logger.e(LOG_TAG, "No voice assistant installed to handle speech recognition. " + e.getMessage());
+			UI.toastLong(getApplicationContext(), R.string.voice_input_error_incompatible_voice_service);
+			finish();
+		}
 	}
 
 

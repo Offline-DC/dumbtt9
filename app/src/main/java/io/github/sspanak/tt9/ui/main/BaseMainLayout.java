@@ -210,6 +210,19 @@ abstract public class BaseMainLayout {
 
 
 	/**
+	 * KT9 fork: show or hide the whole keyboard container. GONE makes it take zero space, collapsing the
+	 * IME window to nothing (hiding the "black bar") without finishing the input session. Preferred over a
+	 * 0-height because visibility is not overwritten by the height/resize logic.
+	 */
+	void setKeyboardVisible(boolean visible) {
+		View keyboard = view != null ? view.findViewById(R.id.keyboard_container) : null;
+		if (keyboard != null) {
+			keyboard.setVisibility(visible ? View.VISIBLE : View.GONE);
+		}
+	}
+
+
+	/**
 	 * Adjusts the width of the keyboard to the given percentage of the screen width.
 	 */
 	private void setKeyboardWidth(int widthPercent) {

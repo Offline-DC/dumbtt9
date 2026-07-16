@@ -199,4 +199,14 @@ public class SettingsUI extends SettingsTyping {
 	public boolean isMainLayoutTray() { return getMainViewLayout() == LAYOUT_TRAY; }
 	public boolean isMainLayoutSmall() { return getMainViewLayout() == LAYOUT_SMALL; }
 	public boolean isMainLayoutStealth() { return getMainViewLayout() == LAYOUT_STEALTH; }
+
+	/**
+	 * KT9 fork: whether the input mode should be announced with a transient popup instead of a
+	 * persistent tray label. True on every layout that collapses its keys into a thin strip (stealth,
+	 * tray, small) — i.e. everything except the large touch keyboards (classic / numpad). Not tied to
+	 * the status icon, because on these layouts the popup is the primary mode indicator.
+	 */
+	public boolean isModePopupEnabled() {
+		return !isMainLayoutLarge();
+	}
 }

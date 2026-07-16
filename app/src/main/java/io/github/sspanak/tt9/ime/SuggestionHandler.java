@@ -81,6 +81,7 @@ abstract public class SuggestionHandler extends TypingHandler {
 	protected void onAcceptSuggestionsDelayed(String word) {
 		onAcceptSuggestionManually(word, -1);
 		forceShowWindow();
+		refreshTrayVisibility(); // KT9 fork: auto-accept clears the word — hide the empty strip
 	}
 
 
@@ -131,7 +132,18 @@ abstract public class SuggestionHandler extends TypingHandler {
 			}
 		} else {
 			mInputMode
-				.setOnSuggestionsUpdated(() -> handleSuggestionsAsync(loadingId, onComplete))
+				.setOnSuggestionsUpdated(() -> {
+					// KT9 fork: the "*"/"1" special-character & punctuation panels are static, in-memory
+					// lists — there is no dictionary lookup to wait for and no need to debounce. Render
+					// them synchronously instead of posting to the next main-loop cycle, so they pop up
+					// immediately. Predictive words still go through the debounced async path.
+					if (mInputMode.isSpecialCharPanelShown()) {
+						getAsyncHandler().removeCallbacksAndMessages(null); // drop any pending word render
+						handleSuggestions(loadingId, onComplete);
+					} else {
+						handleSuggestionsAsync(loadingId, onComplete);
+					}
+				})
 				.loadSuggestions(currentWord == null ? suggestionOps.getCurrent() : currentWord);
 		}
 	}
@@ -162,7 +174,11 @@ abstract public class SuggestionHandler extends TypingHandler {
 		}
 
 		final ArrayList<String> suggestions = mInputMode.getSuggestions();
+		suggestionOps.setInputMode(mInputMode);
 		suggestionOps.set(suggestions, mInputMode.getRecommendedSuggestionIdx(), mInputMode.containsGeneratedSuggestions());
+		// KT9 fork: the "*"/"1" special-char panels open and close by changing the current word right
+		// here, so re-evaluate whether the tray keyboard should be visible after every suggestion update.
+		refreshTrayVisibility();
 
 		// either accept the first one automatically (when switching from punctuation to text
 		// or vice versa), or schedule auto-accept in N seconds (in ABC mode)
@@ -284,6 +300,7 @@ abstract public class SuggestionHandler extends TypingHandler {
 
 		suggestionOps.cancelDelayedAccept();
 		suggestionOps.addGuesses(guesses);
+		refreshTrayVisibility(); // KT9 fork: next-word guesses count as suggestions — show the strip
 		if (!settings.getMindReadingSortPredictionsLast()) {
 			appHacks.setComposingText(guesses.get(0));
 		}

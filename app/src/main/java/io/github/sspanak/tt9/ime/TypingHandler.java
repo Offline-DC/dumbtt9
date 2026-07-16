@@ -64,6 +64,7 @@ public abstract class TypingHandler extends KeyPadHandler {
 
 	protected void createSuggestionBar() {
 		suggestionOps = new SuggestionOps(this, settings, mainView, appHacks, inputType, textField, statusBar, this::onAcceptSuggestionsDelayed, this::onOK, () -> onOK(KeyEvent.KEYCODE_UNKNOWN));
+		suggestionOps.setOnContentChanged(this::refreshTrayVisibility);
 	}
 
 
@@ -105,6 +106,7 @@ public abstract class TypingHandler extends KeyPadHandler {
 		((NaturalLanguage) mLanguage).updateKeyCharacters(settings);
 		resetKeyRepeat();
 		mInputMode = determineInputMode();
+		suggestionOps.setInputMode(mInputMode);
 		determineTextCase();
 		suggestionOps.set(null);
 
@@ -152,10 +154,18 @@ public abstract class TypingHandler extends KeyPadHandler {
 
 		if (willExitInput) {
 			mInputMode = InputMode.getInstance(null, null, null, null, InputMode.MODE_PASSTHROUGH);
+			suggestionOps.setInputMode(mInputMode);
 			setInputField(null);
 		} else {
 			mInputMode.reset();
 		}
+	}
+
+
+	// KT9 fork: expose the live input mode to the UI superclass (tray visibility, mode popup).
+	@Override
+	protected InputMode getCurrentInputMode() {
+		return mInputMode;
 	}
 
 

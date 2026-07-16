@@ -24,6 +24,11 @@ class Mode123 extends ModePassthrough {
 	@Override public int getSequenceLength() { return digitSequence.length(); }
 	@Override public boolean shouldAcceptPreviousSuggestion(String currentWord, int nextKey, boolean hold) { return !currentWord.isEmpty(); }
 
+	// KT9 fork: 123 is a plain numeric mode with no special-character / punctuation panel. Typing "1"
+	// or "0" produces a digitSequence that happens to string-match the punctuation sequences, so
+	// without this override the options row (and the tray keyboard) would flash on every "1"/"0" press.
+	@Override public boolean isSpecialCharPanelShown() { return false; }
+
 	private final ArrayList<ArrayList<String>> KEY_CHARACTERS = new ArrayList<>();
 
 

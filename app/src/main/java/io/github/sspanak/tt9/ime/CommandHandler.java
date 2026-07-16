@@ -9,7 +9,6 @@ import io.github.sspanak.tt9.ime.modes.InputMode;
 import io.github.sspanak.tt9.ime.modes.InputModeKind;
 import io.github.sspanak.tt9.languages.LanguageCollection;
 import io.github.sspanak.tt9.languages.NaturalLanguage;
-import io.github.sspanak.tt9.ui.UI;
 import io.github.sspanak.tt9.util.Ternary;
 
 abstract public class CommandHandler extends TextEditingHandler {
@@ -58,9 +57,12 @@ abstract public class CommandHandler extends TextEditingHandler {
 			statusBar.setText(R.string.commands_select_command);
 			statusBar.setAccessibilityText(R.string.commands_select_command);
 		} else {
-			statusBar.setText(mInputMode);
+			// KT9 fork: no persistent mode label anymore; just clear any transient message. The mode
+			// itself is shown via a popup on change.
+			statusBar.clearText();
 			statusBar.setAccessibilityText(mInputMode);
 		}
+		refreshTrayVisibility();
 	}
 
 
@@ -79,6 +81,7 @@ abstract public class CommandHandler extends TextEditingHandler {
 		resetKeyRepeat();
 
 		mInputMode = InputMode.getInstance(settings, mLanguage, inputType, textField, modeId);
+		suggestionOps.setInputMode(mInputMode);
 		determineTextCase();
 
 		// KT9 fork: apply a "#"-selected text case (en / En / EN) when requested.
@@ -95,11 +98,12 @@ abstract public class CommandHandler extends TextEditingHandler {
 		setStatusIcon(mInputMode, mLanguage);
 		statusBar.setText(mInputMode);
 		statusBar.setAccessibilityText(mInputMode);
+		// KT9 fork: drop any options row left over from the previous mode, then hide/show the tray for
+		// the new mode and announce it with a popup instead of a persistent "[ en ]" label.
+		suggestionOps.set(null);
 		mainView.render();
-
-		if (settings.isMainLayoutStealth() && !settings.isStatusIconEnabled()) {
-			UI.toastShortSingle(this, mInputMode.getClass().getSimpleName(), mInputMode.toString());
-		}
+		refreshTrayVisibility();
+		showModePopup();
 	}
 
 
@@ -121,6 +125,7 @@ abstract public class CommandHandler extends TextEditingHandler {
 		mInputMode = InputMode
 			.getInstance(settings, mLanguage, inputType, textField, determineInputModeId())
 			.copy(mInputMode);
+		suggestionOps.setInputMode(mInputMode);
 
 		if (mInputMode.isTyping()) {
 			getSuggestions(0, null, this::onAfterLanguageChange);
@@ -145,9 +150,8 @@ abstract public class CommandHandler extends TextEditingHandler {
 		statusBar.setAccessibilityText(mInputMode);
 		suggestionOps.setLanguage(mLanguage);
 		mainView.render();
-		if (settings.isMainLayoutStealth() && !settings.isStatusIconEnabled()) {
-			UI.toastShortSingle(this, mInputMode.getClass().getSimpleName(), mInputMode.toString());
-		}
+		refreshTrayVisibility();
+		showModePopup();
 	}
 
 

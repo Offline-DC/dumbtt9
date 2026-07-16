@@ -138,6 +138,16 @@ abstract class KeyPadHandler extends UiHandler {
 	 */
 	@Override
 	public boolean onKeyUp(int keyCode, KeyEvent event) {
+		final boolean handled = onKeyUpInternal(keyCode, event);
+		// KT9 fork: after every key is processed, re-sync the tray. This collapses the strip the instant a
+		// word is accepted (isTyping -> false) and re-expands it when composing resumes, regardless of which
+		// accept path ran (OK key, space, auto-accept, backspace-to-empty, …).
+		refreshTrayVisibility();
+		return handled;
+	}
+
+
+	private boolean onKeyUpInternal(int keyCode, KeyEvent event) {
 		if (debounceKey(keyCode, event)) {
 			return true;
 		}
