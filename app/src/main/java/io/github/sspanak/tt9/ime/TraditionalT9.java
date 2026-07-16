@@ -62,20 +62,44 @@ public class TraditionalT9 extends PremiumHandler {
 		if (settings != null && settings.isMainLayoutLarge()) {
 			return null;
 		}
-		// Tray/small (KikaIME structure): a FULL-SCREEN, transparent host (candidate_host.xml is
-		// match_parent x match_parent). tt9's bar goes into the bottom-pinned slot, so the window spans the
-		// whole screen (so the mode pill always has a live host and nothing needs to shrink) but only the
-		// bottom strip paints. The SLOT owns the bottom gravity, so tt9's own height management on the bar
-		// view cannot knock it back to the top. The bar's visibility is toggled (GONE/VISIBLE) by
-		// refreshTrayVisibility, and onComputeInsets reserves only its height, so when it is hidden the
-		// screen is fully usable with no leftover black bar.
-		final View host = getLayoutInflater().inflate(R.layout.candidate_host, null);
-		final android.view.ViewGroup slot = host.findViewById(R.id.kt9_bar_slot);
+		// Tray/small (KikaIME structure): a FULL-SCREEN, transparent host. tt9's bar goes into a bottom-pinned
+		// slot, so the window spans the whole screen (the mode pill always has a live host and nothing needs
+		// to shrink) but only the bottom strip paints. The bar's visibility is toggled (GONE/VISIBLE) by
+		// refreshTrayVisibility, and onComputeInsets reserves only its height, so an idle screen has no black
+		// bar. Built in code with EXPLICIT match_parent params: inflating an XML root with a null parent
+		// silently drops its layout_width/height, which collapsed the host to bar-height (the r27 bug) and
+		// left the bar at the top.
+		final android.widget.FrameLayout host = new android.widget.FrameLayout(this);
+		host.setLayoutParams(new android.view.ViewGroup.LayoutParams(
+			android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+		host.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+
+		// Filler: a transparent match_parent x match_parent child forces the host to full-screen height even
+		// if the framework re-adds the candidates view as wrap_content (a wrap_content parent measures a
+		// match_parent child to the full available height). Without a full-height host, a bottom-gravity
+		// child has no room to drop and the bar stays at the top.
+		final View filler = new View(this);
+		host.addView(filler, new android.widget.FrameLayout.LayoutParams(
+			android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
+
+		// Bottom-pinned slot that WE own. tt9 only manages the bar INSIDE it, so tt9's height code can't
+		// strip the bar's gravity and bounce it to the top (that was the r26 failure) — the slot keeps the
+		// bottom gravity no matter what tt9 does to the bar.
+		final android.widget.FrameLayout slot = new android.widget.FrameLayout(this);
+		final android.widget.FrameLayout.LayoutParams slotLp = new android.widget.FrameLayout.LayoutParams(
+			android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT);
+		slotLp.gravity = android.view.Gravity.BOTTOM;
+
 		final View bar = buildBarView();
 		if (bar.getParent() instanceof android.view.ViewGroup) {
 			((android.view.ViewGroup) bar.getParent()).removeView(bar);
 		}
-		slot.addView(bar);
+		slot.addView(bar, new android.widget.FrameLayout.LayoutParams(
+			android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT));
+		host.addView(slot, slotLp);
+
+		trayHost = host;
+		trayBarSlot = slot;
 		return host;
 	}
 
@@ -146,7 +170,7 @@ public class TraditionalT9 extends PremiumHandler {
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r27 — bar now in a bottom-pinned slot inside the full-screen candidates host (fixes bar drawing at the top)";
+	public static final String KT9_BUILD = "KT9 build r28 — host built in code with explicit full-screen params + bottom slot (fixes null-inflate collapse); logs HOST/SLOT geometry";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {

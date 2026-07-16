@@ -30,6 +30,10 @@ abstract class UiHandler extends AbstractHandler {
 	// KikaIME structure: whether the bar (inside the full-screen transparent candidates host) is currently
 	// visible. Read by onComputeInsets to reserve the bar's height only while it is actually shown.
 	protected boolean trayBarShown = false;
+	// KT9 diagnostics: references to the full-screen candidates host and the bottom bar slot, for KT9geo
+	// geometry logging (so we can confirm the host is truly full-screen and the slot sits at the bottom).
+	protected android.view.View trayHost = null;
+	protected android.view.View trayBarSlot = null;
 	protected MainView mainView = null;
 	@NonNull private final ModePopup modePopup = new ModePopup();
 
@@ -145,11 +149,17 @@ abstract class UiHandler extends AbstractHandler {
 			final int[] bloc = new int[2]; int bw = -1, bh = -1;
 			final android.view.View bar = mainView != null ? mainView.getView() : null;
 			if (bar != null) { bar.getLocationOnScreen(bloc); bw = bar.getWidth(); bh = bar.getHeight(); }
+			final int[] hloc = new int[2]; int hw = -1, hh = -1;
+			if (trayHost != null) { trayHost.getLocationOnScreen(hloc); hw = trayHost.getWidth(); hh = trayHost.getHeight(); }
+			final int[] sloc = new int[2]; int sw = -1, sh = -1;
+			if (trayBarSlot != null) { trayBarSlot.getLocationOnScreen(sloc); sw = trayBarSlot.getWidth(); sh = trayBarSlot.getHeight(); }
 			Logger.d("KT9geo", where
 				+ " | screen=" + dm.widthPixels + "x" + dm.heightPixels
 				+ " fullscreen=" + isFullscreenMode() + " inputShown=" + isInputViewShown()
 				+ " | WIN[" + win + "]"
 				+ " | DECOR@y" + dloc[1] + " " + dw + "x" + dh
+				+ " | HOST@y" + hloc[1] + " " + hw + "x" + hh
+				+ " | SLOT@y" + sloc[1] + " " + sw + "x" + sh
 				+ " | BAR@y" + bloc[1] + " " + bw + "x" + bh);
 		} catch (Exception e) {
 			Logger.d("KT9geo", where + " ERR " + e.getMessage());
