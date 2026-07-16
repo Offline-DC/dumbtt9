@@ -176,18 +176,57 @@ public class TraditionalT9 extends PremiumHandler {
 	@Override
 	public void onWindowShown() {
 		super.onWindowShown();
+		// KT9 fork (tray/small): extend the IME window's content into the bottom system-inset (navigation-bar)
+		// area, so the full-screen candidates host reaches the TRUE screen bottom. Otherwise the candidate
+		// frame is inset ~30px and the bar floats above a black strip on apps without a nav bar. The LAYOUT_*
+		// flags only change layout — they do NOT hide the nav bar.
+		if (settings != null && !settings.isMainLayoutLarge() && getWindow() != null && getWindow().getWindow() != null) {
+			getWindow().getWindow().getDecorView().setSystemUiVisibility(
+				View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+		}
 		final View decor = getWindow() != null && getWindow().getWindow() != null ? getWindow().getWindow().getDecorView() : null;
 		if (decor != null) {
-			decor.post(() -> logGeometry("onWindowShown"));
+			decor.post(() -> { logGeometry("onWindowShown"); logFrames("onWindowShown"); });
 		} else {
 			logGeometry("onWindowShown(no decor)");
 		}
 	}
 
 
+	// KT9 diagnostics: dump the IME's input & candidate frames plus the system-bar insets, so we can identify
+	// exactly what the ~30px gap below the bar is (nav-bar inset vs input frame vs candidate-frame inset).
+	// Grep logcat for "KT9geo FRAMES".
+	private void logFrames(String where) {
+		try {
+			final android.view.Window w = getWindow() != null ? getWindow().getWindow() : null;
+			if (w == null) { Logger.d("KT9geo", where + " FRAMES: no window"); return; }
+			String insetsStr = "n/a";
+			final android.view.WindowInsets rwi = w.getDecorView().getRootWindowInsets();
+			if (rwi != null) {
+				insetsStr = "sysTop=" + rwi.getSystemWindowInsetTop() + " sysBottom=" + rwi.getSystemWindowInsetBottom() + " stableBottom=" + rwi.getStableInsetBottom();
+			}
+			final View inputArea = w.findViewById(android.R.id.inputArea);
+			final View candFrame = (trayHost != null && trayHost.getParent() instanceof View) ? (View) trayHost.getParent() : null;
+			Logger.d("KT9geo", where + " FRAMES | sysUiVis=0x" + Integer.toHexString(w.getDecorView().getSystemUiVisibility())
+				+ " | insets[" + insetsStr + "] | inputArea " + frameStr(inputArea) + " | candFrame " + frameStr(candFrame));
+		} catch (Exception e) {
+			Logger.d("KT9geo", where + " FRAMES ERR " + e.getMessage());
+		}
+	}
+
+	private String frameStr(View v) {
+		if (v == null) {
+			return "null";
+		}
+		final int[] loc = new int[2];
+		v.getLocationOnScreen(loc);
+		return "@y" + loc[1] + " " + v.getWidth() + "x" + v.getHeight() + " vis=" + v.getVisibility();
+	}
+
+
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r29 — zero-height input view (bar reaches true bottom), insets from bar's real top (no overlap), pill lowered";
+	public static final String KT9_BUILD = "KT9 build r30 — extend window through bottom nav-bar inset (bar to true bottom); + FRAMES diagnostics (input/candidate frames, sys insets)";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {
