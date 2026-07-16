@@ -47,11 +47,10 @@ abstract class UiHandler extends AbstractHandler {
 		}
 
 		setInputField(getCurrentInputEditorInfo());
-		// KT9 fork: report visible only when the strip has content. At rest we fully hide the IME window
-		// (see refreshTrayVisibility) because on this device collapsing the strip's content does NOT shrink
-		// the window — it keeps painting a bar. Reporting the same condition here keeps the framework in
-		// agreement so there is no show-then-hide flash on field entry.
-		return isMainViewShown = shouldBeVisible();
+		// KikaIME-style: keep the bar shown whenever typing is possible — we never hide the window. The
+		// suggestion strip only fills while composing (empty/thin otherwise), and the mode pill floats
+		// above it. Because the pill is hosted by this always-shown window, it appears the same everywhere.
+		return isMainViewShown = isTypingPossible();
 	}
 
 
@@ -101,21 +100,10 @@ abstract class UiHandler extends AbstractHandler {
 
 		trayRefreshing = true;
 		try {
-			final boolean visible = shouldBeVisible();
-			final boolean shown = isInputViewShown();
-			// On this device, collapsing only the strip's content does NOT shrink the IME window — it keeps
-			// painting a black/white bar. The only thing that removes it is fully hiding the window.
-			// hideWindow() finishes the input view, but that is safe here: we hide ONLY when there is nothing
-			// to show (never while composing), so no word is lost; and the trayRefreshing guard blocks the
-			// finish -> clear -> onContentChanged -> refresh recursion that crashed r11. When content
-			// appears we force the window back up. Log only the actual transitions (not every keystroke).
-			if (visible && !shown) {
-				Logger.d("KT9bar", "SHOW window");
-				forceShowWindow();
-			} else if (!visible && shown) {
-				Logger.d("KT9bar", "HIDE window");
-				hideWindow();
-			}
+			// KikaIME-style: the bar stays shown whenever a text field is focused; we never hideWindow().
+			// Just keep the framework's input-view state in sync (onEvaluateInputViewShown reports shown).
+			// The suggestion strip fills only while composing; the mode pill floats above the bar.
+			updateInputViewShown();
 		} finally {
 			trayRefreshing = false;
 		}

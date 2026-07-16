@@ -11,7 +11,6 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.view.WindowManager;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 
@@ -28,9 +27,9 @@ import io.github.sspanak.tt9.util.Logger;
  *     bottom, and text-Toast gravity is ignored on Android 11+);
  *   - custom-view Toasts are silently dropped on Android 11+, so they never appear at all.
  *
- * The popup is shown as an INDEPENDENT input-method dialog window (setWindowLayoutType), not a child of
- * the keyboard window. That is what lets the same pill appear both while typing (keyboard window up) and
- * at rest (keyboard window hidden to remove the bar) — a child popup would vanish with the hidden window.
+ * The popup is anchored to the IME window's decor view and floats above the keyboard bar. Since the bar
+ * (KikaIME-style) is always shown while a text field is focused, the pill's host window is always present,
+ * so the same pill appears everywhere — while composing and at rest.
  */
 public class ModePopup {
 	private static final long VISIBLE_MS = 900;
@@ -64,12 +63,6 @@ public class ModePopup {
 				popup.setTouchable(false);
 				popup.setFocusable(false);
 				popup.setClippingEnabled(false);
-				// THE KEY FIX: make the pill an INDEPENDENT input-method dialog window instead of the default
-				// child panel of the keyboard window. We hide the keyboard window at rest to remove the bar;
-				// a child popup vanishes with it (isShowing() stays true but nothing draws — that's the bug
-				// you saw). A TYPE_INPUT_METHOD_DIALOG window floats above the keyboard and survives the bar
-				// being hidden, so the same pill shows everywhere — typing or at rest.
-				popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG);
 			}
 
 			label.setText(text);
