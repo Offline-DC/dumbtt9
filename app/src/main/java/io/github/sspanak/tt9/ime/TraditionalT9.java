@@ -11,6 +11,7 @@ import androidx.annotation.NonNull;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import io.github.sspanak.tt9.R;
 import io.github.sspanak.tt9.db.DataStore;
 import io.github.sspanak.tt9.db.words.DictionaryLoader;
 import io.github.sspanak.tt9.hacks.InputType;
@@ -45,6 +46,44 @@ public class TraditionalT9 extends PremiumHandler {
 
 	@Override
 	public View onCreateInputView() {
+		// KikaIME structure: on the hardware-keypad (tray/small) layout the INPUT view is empty; the visible
+		// bar lives in the CANDIDATES view (a full-screen transparent host, see onCreateCandidatesView). On
+		// the large touch layouts the soft keyboard genuinely IS the input view, so keep it there.
+		if (settings != null && settings.isMainLayoutLarge()) {
+			return buildBarView();
+		}
+		return getLayoutInflater().inflate(R.layout.input_view_empty, null);
+	}
+
+
+	@Override
+	public View onCreateCandidatesView() {
+		// Large layouts keep the bar in the input view -> no candidates view.
+		if (settings != null && settings.isMainLayoutLarge()) {
+			return null;
+		}
+		// Tray/small (KikaIME structure): a FULL-SCREEN, transparent host whose only opaque child is tt9's
+		// bar, pinned to the BOTTOM. The window therefore always spans the whole screen (so the mode pill
+		// always has a live host and nothing needs to shrink), but only the bottom strip paints. The bar's
+		// own visibility is toggled (GONE/VISIBLE) by refreshTrayVisibility, and onComputeInsets reserves
+		// only its height, so when it is hidden the screen is fully usable with no leftover black bar.
+		final View bar = buildBarView();
+		if (bar.getParent() instanceof android.view.ViewGroup) {
+			((android.view.ViewGroup) bar.getParent()).removeView(bar);
+		}
+		final android.widget.FrameLayout host = new android.widget.FrameLayout(this);
+		host.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+		host.addView(bar, new android.widget.FrameLayout.LayoutParams(
+			android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+			android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+			android.view.Gravity.BOTTOM));
+		return host;
+	}
+
+
+	// Builds tt9's bar (status + suggestions) as a fresh, parentless view. forceCreate() is required
+	// because the framework may re-create the view and reusing the old one throws "already has a parent".
+	private View buildBarView() {
 		mainView.forceCreate();
 		initTray();
 		statusBar.setText(mInputMode);
@@ -57,20 +96,38 @@ public class TraditionalT9 extends PremiumHandler {
 	@Override
 	public void onComputeInsets(Insets outInsets) {
 		super.onComputeInsets(outInsets);
-		// KT9 fork: when the bar is up, cover the thin white strip some apps (e.g. Messages) leave above it
-		// by reporting the content region a few px into the bar's top edge.
-		if (shouldBeVisible()) {
+
+		if (settings != null && !settings.isMainLayoutLarge()) {
+			// Tray/small (KikaIME structure): the candidates host is a full-screen transparent view, so the
+			// framework would otherwise reserve the whole screen. Report screen-relative insets instead:
+			// reserve ONLY the bar's height when it is shown, and nothing at all when it is hidden. This both
+			// frees the screen for the app and (via visibleTopInsets) lets touches above the bar pass through.
+			final int screenH = getResources().getDisplayMetrics().heightPixels;
+			final int barH = trayBarShown ? currentBarHeightPx(screenH) : 0;
+			final int top = Math.max(0, screenH - barH);
+			outInsets.contentTopInsets = top;
+			outInsets.visibleTopInsets = top;
+		} else if (shouldBeVisible()) {
+			// Large touch layouts: unchanged — cover the thin app gap above the keyboard when it is shown.
 			outInsets.contentTopInsets = outInsets.visibleTopInsets + APP_GAP_COVER_PX;
 		}
 
 		// KT9 diagnostics: log the insets handed to the host app, but only when they change (this runs every
-		// frame). content/visible are measured from the TOP of the screen: a bottom-docked bar reports
-		// (screenHeight - barHeight); a full-screen window would report ~0. Grep logcat for "KT9geo".
-		final String insetsLine = "insets content=" + outInsets.contentTopInsets + " visible=" + outInsets.visibleTopInsets + " touchable=" + outInsets.touchableInsets;
+		// frame). content/visible are measured from the TOP of the screen. Grep logcat for "KT9geo".
+		final String insetsLine = "insets content=" + outInsets.contentTopInsets + " visible=" + outInsets.visibleTopInsets + " touchable=" + outInsets.touchableInsets + " trayBarShown=" + trayBarShown;
 		if (!insetsLine.equals(lastInsetsLog)) {
 			lastInsetsLog = insetsLine;
 			Logger.d("KT9geo", insetsLine);
 		}
+	}
+
+
+	// KT9 fork: current painted height of the bar (status + suggestions). Uses the measured view height;
+	// falls back to ~1/6 screen before the first layout so we never reserve a wild value.
+	private int currentBarHeightPx(int screenH) {
+		final View bar = mainView != null ? mainView.getView() : null;
+		final int h = bar != null ? bar.getHeight() : 0;
+		return h > 0 ? h : Math.round(screenH / 6f);
 	}
 
 
@@ -90,7 +147,7 @@ public class TraditionalT9 extends PremiumHandler {
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r25 — r24 (stable, bar bottom-docked) + KT9geo geometry/insets logging, no behavior change";
+	public static final String KT9_BUILD = "KT9 build r26 — KikaIME structure: full-screen transparent candidates host, bar pinned bottom + toggled, screen-relative insets";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {

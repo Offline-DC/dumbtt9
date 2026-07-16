@@ -70,9 +70,10 @@ public class ModePopup {
 			if (popup.isShowing()) {
 				popup.update();
 			} else {
-				// Coordinates are relative to the anchor's window (which sits at the bottom of the screen),
-				// so -y moves the pill up toward the middle. A positive offset would push it off-screen.
-				final int upOffset = -Math.round(ims.getResources().getDisplayMetrics().heightPixels / 3f);
+				// The candidates host is full-screen (KikaIME structure), so Gravity.CENTER puts the pill at
+				// the screen center. Lift it to the upper-middle so it reads as a floating indicator instead
+				// of covering the caret, matching the reference keyboard. Increase the divisor to lower it.
+				final int upOffset = -Math.round(ims.getResources().getDisplayMetrics().heightPixels / 8f);
 				popup.showAtLocation(anchor, Gravity.CENTER, 0, upOffset);
 			}
 

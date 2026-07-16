@@ -27,6 +27,9 @@ abstract class UiHandler extends AbstractHandler {
 
 	protected int displayTextCase = InputMode.CASE_UNDEFINED;
 	protected boolean isMainViewShown = false;
+	// KikaIME structure: whether the bar (inside the full-screen transparent candidates host) is currently
+	// visible. Read by onComputeInsets to reserve the bar's height only while it is actually shown.
+	protected boolean trayBarShown = false;
 	protected MainView mainView = null;
 	@NonNull private final ModePopup modePopup = new ModePopup();
 
@@ -100,10 +103,20 @@ abstract class UiHandler extends AbstractHandler {
 
 		trayRefreshing = true;
 		try {
-			// KT9 fork: keep the window's shown-state in sync with whether typing is currently possible.
+			// KikaIME structure: keep the (empty) input view / window shown so the full-screen transparent
+			// candidates host stays up as the mode pill's anchor. Keep the host itself always shown, and
+			// toggle only the BAR child's visibility: shown for real content (voice, the "*" panel, active
+			// TT9 suggestions), GONE otherwise. onComputeInsets then reserves the bar's height only while it
+			// is visible, so an idle screen has no leftover black bar.
 			updateInputViewShown();
+			final boolean show = trayHasContent();
+			trayBarShown = show;
+			if (mainView != null && mainView.getView() != null) {
+				mainView.getView().setVisibility(show ? android.view.View.VISIBLE : android.view.View.GONE);
+			}
+			setCandidatesViewShown(true);
 			// KT9 diagnostics: record the content decision + resulting geometry each refresh (tag KT9geo).
-			logGeometry("refreshTray typingPossible=" + isTypingPossible() + " hasContent=" + trayHasContent());
+			logGeometry("refreshTray typingPossible=" + isTypingPossible() + " barShown=" + show);
 		} finally {
 			trayRefreshing = false;
 		}
@@ -220,6 +233,22 @@ abstract class UiHandler extends AbstractHandler {
 
 	public void setCurrentView() {
 		setInputView(onCreateInputView());
+
+		if (settings != null && settings.isMainLayoutLarge()) {
+			// Large layouts keep the bar in the input view — make sure no stray candidates host lingers.
+			setCandidatesViewShown(false);
+			return;
+		}
+
+		// Tray/small (KikaIME structure): install the full-screen transparent candidates host and show it.
+		// onCreateCandidatesView() rebuilds a fresh host each time, so set it explicitly (otherwise the
+		// framework's own cached copy goes stale after tt9 re-renders the bar).
+		setCandidatesView(onCreateCandidatesView());
+		trayBarShown = trayHasContent();
+		if (mainView != null && mainView.getView() != null) {
+			mainView.getView().setVisibility(trayBarShown ? android.view.View.VISIBLE : android.view.View.GONE);
+		}
+		setCandidatesViewShown(true);
 	}
 
 
