@@ -27,9 +27,6 @@ abstract class UiHandler extends AbstractHandler {
 
 	protected int displayTextCase = InputMode.CASE_UNDEFINED;
 	protected boolean isMainViewShown = false;
-	// KikaIME-style: whether the candidates bar is currently shown (tray/small layout). Read by
-	// onComputeInsets so it reserves the bar's height only while the bar is actually visible.
-	protected boolean trayBarShown = false;
 	protected MainView mainView = null;
 	@NonNull private final ModePopup modePopup = new ModePopup();
 
@@ -103,16 +100,46 @@ abstract class UiHandler extends AbstractHandler {
 
 		trayRefreshing = true;
 		try {
-			// KikaIME structure: keep the (empty) input view / window shown so the mode pill always has a live
-			// host, then show or hide the BAR via the candidates view. Android collapses the candidates area to
-			// zero height when hidden — with no leftover strip and no window churn — so the bar appears only
-			// for real content (voice, the "*" panel, or active TT9 suggestions) and is gone otherwise.
+			// KT9 fork: keep the window's shown-state in sync with whether typing is currently possible.
 			updateInputViewShown();
-			final boolean show = trayHasContent();
-			trayBarShown = show;
-			setCandidatesViewShown(show);
+			// KT9 diagnostics: record the content decision + resulting geometry each refresh (tag KT9geo).
+			logGeometry("refreshTray typingPossible=" + isTypingPossible() + " hasContent=" + trayHasContent());
 		} finally {
 			trayRefreshing = false;
+		}
+	}
+
+
+	// --- KT9 diagnostics (tag: KT9geo) -----------------------------------------------------------------
+	// Dumps the real on-screen geometry of the IME window, its decor view and tt9's bar, so we can see how
+	// tall and where the keyboard window actually is on this device. This is the data needed to reproduce
+	// how the reference (KikaIME) keyboard docks its bar at the bottom and collapses it: KikaIME uses a
+	// FULL-SCREEN transparent candidates view with the bar pinned to the bottom (layout_alignParentBottom)
+	// and onComputeInsets forcing contentTopInsets = screenHeight - barHeight (or full screenHeight when
+	// idle). Compare BAR@y / DECOR height / WIN h against screen height in the logs.
+	protected void logGeometry(String where) {
+		try {
+			final android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+			String win = "n/a";
+			android.view.View decor = null;
+			if (getWindow() != null && getWindow().getWindow() != null) {
+				final android.view.WindowManager.LayoutParams lp = getWindow().getWindow().getAttributes();
+				win = "gravity=" + lp.gravity + " y=" + lp.y + " w=" + lp.width + " h=" + lp.height + " type=" + lp.type;
+				decor = getWindow().getWindow().getDecorView();
+			}
+			final int[] dloc = new int[2]; int dw = -1, dh = -1;
+			if (decor != null) { decor.getLocationOnScreen(dloc); dw = decor.getWidth(); dh = decor.getHeight(); }
+			final int[] bloc = new int[2]; int bw = -1, bh = -1;
+			final android.view.View bar = mainView != null ? mainView.getView() : null;
+			if (bar != null) { bar.getLocationOnScreen(bloc); bw = bar.getWidth(); bh = bar.getHeight(); }
+			Logger.d("KT9geo", where
+				+ " | screen=" + dm.widthPixels + "x" + dm.heightPixels
+				+ " fullscreen=" + isFullscreenMode() + " inputShown=" + isInputViewShown()
+				+ " | WIN[" + win + "]"
+				+ " | DECOR@y" + dloc[1] + " " + dw + "x" + dh
+				+ " | BAR@y" + bloc[1] + " " + bw + "x" + bh);
+		} catch (Exception e) {
+			Logger.d("KT9geo", where + " ERR " + e.getMessage());
 		}
 	}
 
@@ -193,19 +220,6 @@ abstract class UiHandler extends AbstractHandler {
 
 	public void setCurrentView() {
 		setInputView(onCreateInputView());
-
-		if (settings != null && settings.isMainLayoutLarge()) {
-			// Large layouts keep the bar in the input view — make sure no stray candidates view lingers.
-			setCandidatesViewShown(false);
-			return;
-		}
-
-		// Tray/small (KikaIME structure): the bar is the candidates view. onCreateCandidatesView() rebuilds a
-		// fresh bar, so set it here (the framework would otherwise create its own copy that goes stale after
-		// tt9 re-renders), then show it only if there is content right now.
-		setCandidatesView(onCreateCandidatesView());
-		trayBarShown = trayHasContent();
-		setCandidatesViewShown(trayBarShown);
 	}
 
 
