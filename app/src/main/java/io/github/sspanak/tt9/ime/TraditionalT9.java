@@ -11,7 +11,6 @@ import androidx.annotation.NonNull;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import io.github.sspanak.tt9.R;
 import io.github.sspanak.tt9.db.DataStore;
 import io.github.sspanak.tt9.db.words.DictionaryLoader;
 import io.github.sspanak.tt9.hacks.InputType;
@@ -52,7 +51,15 @@ public class TraditionalT9 extends PremiumHandler {
 		if (settings != null && settings.isMainLayoutLarge()) {
 			return buildBarView();
 		}
-		return getLayoutInflater().inflate(R.layout.input_view_empty, null);
+		// Tray/small: a genuinely zero-height input view, so the full-screen candidates host gets the entire
+		// window and the bar can reach the true screen bottom. setInputView() forces MATCH_PARENT on whatever
+		// we return, so override onMeasure to report 0 height regardless.
+		return new View(this) {
+			@Override
+			protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+				setMeasuredDimension(0, 0);
+			}
+		};
 	}
 
 
@@ -121,13 +128,23 @@ public class TraditionalT9 extends PremiumHandler {
 		super.onComputeInsets(outInsets);
 
 		if (settings != null && !settings.isMainLayoutLarge()) {
-			// Tray/small (KikaIME structure): the candidates host is a full-screen transparent view, so the
-			// framework would otherwise reserve the whole screen. Report screen-relative insets instead:
-			// reserve ONLY the bar's height when it is shown, and nothing at all when it is hidden. This both
-			// frees the screen for the app and (via visibleTopInsets) lets touches above the bar pass through.
+			// Tray/small (KikaIME structure): the candidates host is a full-screen transparent view. Reserve
+			// for the app exactly the region from the bar's REAL top edge downward (so the app never draws
+			// under the bar), and nothing when the bar is hidden. Using the bar's measured on-screen position —
+			// rather than screenHeight - barHeight — keeps the app aligned with the bar even when the window
+			// doesn't reach the very bottom of the display (e.g. a navigation-bar gap).
 			final int screenH = getResources().getDisplayMetrics().heightPixels;
-			final int barH = trayBarShown ? currentBarHeightPx(screenH) : 0;
-			final int top = Math.max(0, screenH - barH);
+			int top = screenH;
+			if (trayBarShown) {
+				final View bar = mainView != null ? mainView.getView() : null;
+				if (bar != null && bar.getHeight() > 0) {
+					final int[] barLoc = new int[2];
+					bar.getLocationOnScreen(barLoc);
+					top = Math.max(0, barLoc[1]);
+				} else {
+					top = Math.max(0, screenH - currentBarHeightPx(screenH));
+				}
+			}
 			outInsets.contentTopInsets = top;
 			outInsets.visibleTopInsets = top;
 		} else if (shouldBeVisible()) {
@@ -170,7 +187,7 @@ public class TraditionalT9 extends PremiumHandler {
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r28 — host built in code with explicit full-screen params + bottom slot (fixes null-inflate collapse); logs HOST/SLOT geometry";
+	public static final String KT9_BUILD = "KT9 build r29 — zero-height input view (bar reaches true bottom), insets from bar's real top (no overlap), pill lowered";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {

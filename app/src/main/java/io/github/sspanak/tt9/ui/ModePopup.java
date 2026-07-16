@@ -71,9 +71,10 @@ public class ModePopup {
 				popup.update();
 			} else {
 				// The candidates host is full-screen (KikaIME structure), so Gravity.CENTER puts the pill at
-				// the screen center. Lift it to the upper-middle so it reads as a floating indicator instead
-				// of covering the caret, matching the reference keyboard. Increase the divisor to lower it.
-				final int upOffset = -Math.round(ims.getResources().getDisplayMetrics().heightPixels / 8f);
+				// the screen center. A POSITIVE offset drops it to the lower-middle so it floats over the
+				// message area rather than up near the title bar. Make the divisor larger to raise it, smaller
+				// (or negative) to lower it further.
+				final int upOffset = Math.round(ims.getResources().getDisplayMetrics().heightPixels / 10f);
 				popup.showAtLocation(anchor, Gravity.CENTER, 0, upOffset);
 			}
 
