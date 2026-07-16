@@ -83,9 +83,7 @@ abstract class UiHandler extends AbstractHandler {
 		// the momentary empty frames between keystrokes would make the strip collapse and re-expand
 		// (height flicker). It hides the instant composing stops (word accepted -> typing=false) and in
 		// ABC/123 direct typing, which never shows a strip.
-		final boolean result = palette || message || panel || (predictive && typing);
-		Logger.d("KT9bar", "trayHasContent=" + result + " [msg=" + message + " panel=" + panel + " predictive=" + predictive + " typing=" + typing + " mode=" + (mode != null ? mode.toString() : "null") + "]");
-		return result;
+		return palette || message || panel || (predictive && typing);
 	}
 
 
@@ -105,16 +103,17 @@ abstract class UiHandler extends AbstractHandler {
 		try {
 			final boolean visible = shouldBeVisible();
 			final boolean shown = isInputViewShown();
-			Logger.d("KT9bar", "refreshTrayVisibility visible=" + visible + " shown=" + shown);
 			// On this device, collapsing only the strip's content does NOT shrink the IME window — it keeps
 			// painting a black/white bar. The only thing that removes it is fully hiding the window.
 			// hideWindow() finishes the input view, but that is safe here: we hide ONLY when there is nothing
 			// to show (never while composing), so no word is lost; and the trayRefreshing guard blocks the
 			// finish -> clear -> onContentChanged -> refresh recursion that crashed r11. When content
-			// appears we force the window back up.
+			// appears we force the window back up. Log only the actual transitions (not every keystroke).
 			if (visible && !shown) {
+				Logger.d("KT9bar", "SHOW window");
 				forceShowWindow();
 			} else if (!visible && shown) {
+				Logger.d("KT9bar", "HIDE window");
 				hideWindow();
 			}
 		} finally {
