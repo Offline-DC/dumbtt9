@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	KikaIME structure: the tray/small CANDIDATES view is a FULL-SCREEN, transparent host (match_parent x
+	match_parent), so the IME window spans the whole screen and the floating mode pill always has a live
+	host to anchor to. tt9's bar (status + suggestions) is inserted at runtime into kt9_bar_slot, which is
+	pinned to the BOTTOM. The slot owns the bottom gravity, so tt9's own height management on the bar view
+	cannot knock it back to the top. onComputeInsets reserves only the bar's height, so the transparent
+	area above it costs the app nothing and shows no black bar.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:background="@android:color/transparent">
+
+	<FrameLayout
+		android:id="@+id/kt9_bar_slot"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_gravity="bottom"
+		android:background="@android:color/transparent" />
+</FrameLayout>

@@ -62,21 +62,20 @@ public class TraditionalT9 extends PremiumHandler {
 		if (settings != null && settings.isMainLayoutLarge()) {
 			return null;
 		}
-		// Tray/small (KikaIME structure): a FULL-SCREEN, transparent host whose only opaque child is tt9's
-		// bar, pinned to the BOTTOM. The window therefore always spans the whole screen (so the mode pill
-		// always has a live host and nothing needs to shrink), but only the bottom strip paints. The bar's
-		// own visibility is toggled (GONE/VISIBLE) by refreshTrayVisibility, and onComputeInsets reserves
-		// only its height, so when it is hidden the screen is fully usable with no leftover black bar.
+		// Tray/small (KikaIME structure): a FULL-SCREEN, transparent host (candidate_host.xml is
+		// match_parent x match_parent). tt9's bar goes into the bottom-pinned slot, so the window spans the
+		// whole screen (so the mode pill always has a live host and nothing needs to shrink) but only the
+		// bottom strip paints. The SLOT owns the bottom gravity, so tt9's own height management on the bar
+		// view cannot knock it back to the top. The bar's visibility is toggled (GONE/VISIBLE) by
+		// refreshTrayVisibility, and onComputeInsets reserves only its height, so when it is hidden the
+		// screen is fully usable with no leftover black bar.
+		final View host = getLayoutInflater().inflate(R.layout.candidate_host, null);
+		final android.view.ViewGroup slot = host.findViewById(R.id.kt9_bar_slot);
 		final View bar = buildBarView();
 		if (bar.getParent() instanceof android.view.ViewGroup) {
 			((android.view.ViewGroup) bar.getParent()).removeView(bar);
 		}
-		final android.widget.FrameLayout host = new android.widget.FrameLayout(this);
-		host.setBackgroundColor(android.graphics.Color.TRANSPARENT);
-		host.addView(bar, new android.widget.FrameLayout.LayoutParams(
-			android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-			android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
-			android.view.Gravity.BOTTOM));
+		slot.addView(bar);
 		return host;
 	}
 
@@ -147,7 +146,7 @@ public class TraditionalT9 extends PremiumHandler {
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r26 — KikaIME structure: full-screen transparent candidates host, bar pinned bottom + toggled, screen-relative insets";
+	public static final String KT9_BUILD = "KT9 build r27 — bar now in a bottom-pinned slot inside the full-screen candidates host (fixes bar drawing at the top)";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {
