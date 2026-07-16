@@ -74,7 +74,7 @@ public class TraditionalT9 extends PremiumHandler {
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r18 — hideWindow at rest (same as r17), trimmed logs";
+	public static final String KT9_BUILD = "KT9 build r20 — pill = independent INPUT_METHOD_DIALOG window (shows same everywhere, no toast)";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {

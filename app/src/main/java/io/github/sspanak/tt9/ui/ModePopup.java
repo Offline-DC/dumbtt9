@@ -11,6 +11,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowManager;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 
@@ -27,9 +28,9 @@ import io.github.sspanak.tt9.util.Logger;
  *     bottom, and text-Toast gravity is ignored on Android 11+);
  *   - custom-view Toasts are silently dropped on Android 11+, so they never appear at all.
  *
- * The popup is anchored to the IME window's decor view purely for its window token — the token stays
- * valid even while the keyboard itself is hidden (as in ABC/123), so the indicator still shows when
- * cycling modes. If the popup can't be shown for any reason, it falls back to a plain toast.
+ * The popup is shown as an INDEPENDENT input-method dialog window (setWindowLayoutType), not a child of
+ * the keyboard window. That is what lets the same pill appear both while typing (keyboard window up) and
+ * at rest (keyboard window hidden to remove the bar) — a child popup would vanish with the hidden window.
  */
 public class ModePopup {
 	private static final long VISIBLE_MS = 900;
@@ -46,15 +47,12 @@ public class ModePopup {
 
 	private void show(@NonNull InputMethodService ims, @NonNull String text, boolean allowRetry) {
 		final View anchor = getAnchor(ims);
-		Logger.d("KT9pop", "show '" + text + "' anchor=" + (anchor != null) + " token=" + (anchor != null && anchor.getWindowToken() != null) + " retry=" + allowRetry);
 		if (anchor == null || anchor.getWindowToken() == null) {
-			// First mode change right after the keyboard opens can land before the IME window is attached
-			// (no token yet). Rather than give up to a delayed toast, wait one short beat and try again;
-			// only fall back if it is still not ready.
+			// The IME window/token isn't ready yet (can briefly happen right as the keyboard opens). Try
+			// once more a beat later; if still unavailable, skip silently (no toast — it would look
+			// different from the pill).
 			if (allowRetry) {
 				handler.postDelayed(() -> show(ims, text, false), 60);
-			} else {
-				fallback(ims, text);
 			}
 			return;
 		}
@@ -66,6 +64,12 @@ public class ModePopup {
 				popup.setTouchable(false);
 				popup.setFocusable(false);
 				popup.setClippingEnabled(false);
+				// THE KEY FIX: make the pill an INDEPENDENT input-method dialog window instead of the default
+				// child panel of the keyboard window. We hide the keyboard window at rest to remove the bar;
+				// a child popup vanishes with it (isShowing() stays true but nothing draws — that's the bug
+				// you saw). A TYPE_INPUT_METHOD_DIALOG window floats above the keyboard and survives the bar
+				// being hidden, so the same pill shows everywhere — typing or at rest.
+				popup.setWindowLayoutType(WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG);
 			}
 
 			label.setText(text);
@@ -73,10 +77,8 @@ public class ModePopup {
 			if (popup.isShowing()) {
 				popup.update();
 			} else {
-				// The popup anchors to the keyboard window, which sits at the BOTTOM of the screen, so
-				// its coordinate space is relative to that window: +y is down (off-screen), -y is up.
-				// Center it and lift it up toward the middle of the screen. (A positive/TOP offset here
-				// pushes it below the screen and it vanishes.)
+				// Coordinates are relative to the anchor's window (which sits at the bottom of the screen),
+				// so -y moves the pill up toward the middle. A positive offset would push it off-screen.
 				final int upOffset = -Math.round(ims.getResources().getDisplayMetrics().heightPixels / 3f);
 				popup.showAtLocation(anchor, Gravity.CENTER, 0, upOffset);
 			}
@@ -85,8 +87,7 @@ public class ModePopup {
 			handler.removeCallbacks(hideRunnable);
 			handler.postDelayed(hideRunnable, VISIBLE_MS);
 		} catch (Exception e) {
-			Logger.d("KT9pop", "show failed: " + e.getMessage() + " -> toast fallback");
-			fallback(ims, text);
+			Logger.d("KT9pop", "show failed: " + e.getMessage());
 		}
 	}
 
@@ -104,10 +105,6 @@ public class ModePopup {
 	private View getAnchor(@NonNull InputMethodService ims) {
 		final Window window = ims.getWindow() != null ? ims.getWindow().getWindow() : null;
 		return window != null ? window.getDecorView() : null;
-	}
-
-	private void fallback(@NonNull Context context, @NonNull String text) {
-		UI.toastShortSingle(context, "kt9_mode_popup", text);
 	}
 
 	@NonNull
