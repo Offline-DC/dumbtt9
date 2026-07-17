@@ -176,19 +176,44 @@ public class TraditionalT9 extends PremiumHandler {
 	@Override
 	public void onWindowShown() {
 		super.onWindowShown();
-		// KT9 fork (tray/small): extend the IME window's content into the bottom system-inset (navigation-bar)
-		// area, so the full-screen candidates host reaches the TRUE screen bottom. Otherwise the candidate
-		// frame is inset ~30px and the bar floats above a black strip on apps without a nav bar. The LAYOUT_*
-		// flags only change layout — they do NOT hide the nav bar.
-		if (settings != null && !settings.isMainLayoutLarge() && getWindow() != null && getWindow().getWindow() != null) {
-			getWindow().getWindow().getDecorView().setSystemUiVisibility(
-				View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+		// KT9 fork (tray/small): the framework wraps the IME content in a LinearLayout that carries a fixed
+		// ~30px BOTTOM MARGIN (it reserves navigation-bar space even though the system inset is 0 on this
+		// device). That margin IS the black strip below the bar and the reason the bar sits ~30px above the
+		// true bottom. Zero it so the window docks flush with the screen bottom and the bar reaches y320.
+		if (settings != null && !settings.isMainLayoutLarge()) {
+			removeImeBottomMargin();
 		}
 		final View decor = getWindow() != null && getWindow().getWindow() != null ? getWindow().getWindow().getDecorView() : null;
 		if (decor != null) {
 			decor.post(() -> { logGeometry("onWindowShown"); logFrames("onWindowShown"); dumpImeTree(); });
 		} else {
 			logGeometry("onWindowShown(no decor)");
+		}
+	}
+
+
+	// KT9 fork: zero the bottom margin the framework puts on the IME decor's content wrapper (see comment in
+	// onWindowShown). Iterates the decor's direct children so it is robust to which child carries the margin.
+	private void removeImeBottomMargin() {
+		try {
+			final android.view.Window w = getWindow() != null ? getWindow().getWindow() : null;
+			if (w == null || !(w.getDecorView() instanceof android.view.ViewGroup)) {
+				return;
+			}
+			final android.view.ViewGroup decor = (android.view.ViewGroup) w.getDecorView();
+			for (int i = 0; i < decor.getChildCount(); i++) {
+				final View child = decor.getChildAt(i);
+				final android.view.ViewGroup.LayoutParams lp = child.getLayoutParams();
+				if (lp instanceof android.view.ViewGroup.MarginLayoutParams) {
+					final android.view.ViewGroup.MarginLayoutParams mlp = (android.view.ViewGroup.MarginLayoutParams) lp;
+					if (mlp.bottomMargin != 0) {
+						mlp.bottomMargin = 0;
+						child.setLayoutParams(mlp);
+					}
+				}
+			}
+		} catch (Exception e) {
+			Logger.d("KT9geo", "removeImeBottomMargin ERR " + e.getMessage());
 		}
 	}
 
@@ -271,7 +296,7 @@ public class TraditionalT9 extends PremiumHandler {
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r31 — diagnostic: full IME view-tree dump (TREE) to pinpoint the 30px between candidate frame and true bottom";
+	public static final String KT9_BUILD = "KT9 build r32 — zero the framework's 30px IME bottom margin: bar now docks flush at the true screen bottom (no black strip, no gap)";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {
