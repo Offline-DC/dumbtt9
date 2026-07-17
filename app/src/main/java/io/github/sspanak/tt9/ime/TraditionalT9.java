@@ -176,12 +176,14 @@ public class TraditionalT9 extends PremiumHandler {
 	@Override
 	public void onWindowShown() {
 		super.onWindowShown();
-		// KT9 fork (tray/small): the framework wraps the IME content in a LinearLayout that carries a fixed
-		// ~30px BOTTOM MARGIN (it reserves navigation-bar space even though the system inset is 0 on this
-		// device). That margin IS the black strip below the bar and the reason the bar sits ~30px above the
-		// true bottom. The framework RE-APPLIES it whenever the input view is (re)shown, so a one-time removal
-		// is not enough — install a layout listener that re-zeros it on every layout pass, then zero it now.
-		if (settings != null && !settings.isMainLayoutLarge()) {
+		// KT9 fork (tray/small): ROOT CAUSE of the 30px black strip — tt9 targets a high SDK (36), so the IME
+		// framework reserves navigation-bar space by putting a ~30px bottom margin on the decor's content
+		// wrapper (the reference keyboard KikaIME targets SDK 30 and never gets this). Opt the window out of
+		// automatic system-window fitting so the IME draws edge-to-edge and the bar reaches the true bottom —
+		// the modern equivalent of the SDK-30 behavior. The margin listener below is now only a silent no-op
+		// safety net (it won't fire once the margin is gone, so no flicker).
+		if (settings != null && !settings.isMainLayoutLarge() && getWindow() != null && getWindow().getWindow() != null) {
+			androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow().getWindow(), false);
 			installImeMarginFixer();
 			removeImeBottomMargin();
 		}
@@ -322,7 +324,7 @@ public class TraditionalT9 extends PremiumHandler {
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r33 — re-zero the framework's 30px IME margin on every layout (it re-applies on input show); bar stays flush at true bottom";
+	public static final String KT9_BUILD = "KT9 build r34 — ROOT CAUSE: targetSdk 36 makes the IME reserve nav-bar space; setDecorFitsSystemWindows(false) removes the 30px margin (KikaIME=SDK30 never had it)";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {
