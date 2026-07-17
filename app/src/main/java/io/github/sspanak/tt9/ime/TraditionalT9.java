@@ -179,8 +179,10 @@ public class TraditionalT9 extends PremiumHandler {
 		// KT9 fork (tray/small): the framework wraps the IME content in a LinearLayout that carries a fixed
 		// ~30px BOTTOM MARGIN (it reserves navigation-bar space even though the system inset is 0 on this
 		// device). That margin IS the black strip below the bar and the reason the bar sits ~30px above the
-		// true bottom. Zero it so the window docks flush with the screen bottom and the bar reaches y320.
+		// true bottom. The framework RE-APPLIES it whenever the input view is (re)shown, so a one-time removal
+		// is not enough — install a layout listener that re-zeros it on every layout pass, then zero it now.
 		if (settings != null && !settings.isMainLayoutLarge()) {
+			installImeMarginFixer();
 			removeImeBottomMargin();
 		}
 		final View decor = getWindow() != null && getWindow().getWindow() != null ? getWindow().getWindow().getDecorView() : null;
@@ -188,6 +190,30 @@ public class TraditionalT9 extends PremiumHandler {
 			decor.post(() -> { logGeometry("onWindowShown"); logFrames("onWindowShown"); dumpImeTree(); });
 		} else {
 			logGeometry("onWindowShown(no decor)");
+		}
+	}
+
+
+	// KT9 fork: the framework re-applies the 30px decor margin on every input-view show, so we re-zero it on
+	// every layout via this listener. removeImeBottomMargin only calls setLayoutParams when the margin is
+	// actually non-zero, so once it settles at 0 the listener stops triggering re-layouts (no loop).
+	private View imeMarginListenerDecor = null;
+	private final android.view.ViewTreeObserver.OnGlobalLayoutListener imeMarginFixer = this::removeImeBottomMargin;
+
+	private void installImeMarginFixer() {
+		try {
+			final android.view.Window w = getWindow() != null ? getWindow().getWindow() : null;
+			final View decor = w != null ? w.getDecorView() : null;
+			if (decor == null || decor == imeMarginListenerDecor) {
+				return; // already installed on this decor
+			}
+			if (imeMarginListenerDecor != null && imeMarginListenerDecor.getViewTreeObserver().isAlive()) {
+				imeMarginListenerDecor.getViewTreeObserver().removeOnGlobalLayoutListener(imeMarginFixer);
+			}
+			decor.getViewTreeObserver().addOnGlobalLayoutListener(imeMarginFixer);
+			imeMarginListenerDecor = decor;
+		} catch (Exception e) {
+			Logger.d("KT9geo", "installImeMarginFixer ERR " + e.getMessage());
 		}
 	}
 
@@ -296,7 +322,7 @@ public class TraditionalT9 extends PremiumHandler {
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r32 — zero the framework's 30px IME bottom margin: bar now docks flush at the true screen bottom (no black strip, no gap)";
+	public static final String KT9_BUILD = "KT9 build r33 — re-zero the framework's 30px IME margin on every layout (it re-applies on input show); bar stays flush at true bottom";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {
