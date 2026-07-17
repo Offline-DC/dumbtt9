@@ -41,17 +41,17 @@ public class ModePopup {
 	@Nullable private TextView label;
 
 	public void show(@NonNull InputMethodService ims, @NonNull String text) {
-		show(ims, text, true);
+		show(ims, text, 4);
 	}
 
-	private void show(@NonNull InputMethodService ims, @NonNull String text, boolean allowRetry) {
+	private void show(@NonNull InputMethodService ims, @NonNull String text, int triesLeft) {
 		final View anchor = getAnchor(ims);
 		if (anchor == null || anchor.getWindowToken() == null) {
-			// The IME window/token isn't ready yet (can briefly happen right as the keyboard opens). Try
-			// once more a beat later; if still unavailable, skip silently (no toast — it would look
-			// different from the pill).
-			if (allowRetry) {
-				handler.postDelayed(() -> show(ims, text, false), 60);
+			// The IME window/token isn't ready yet (can briefly happen right as the keyboard opens on this slow
+			// device). Retry a few times a beat apart; if still unavailable, skip silently (no toast — it would
+			// look different from the pill).
+			if (triesLeft > 0) {
+				handler.postDelayed(() -> show(ims, text, triesLeft - 1), 60);
 			}
 			return;
 		}
@@ -70,12 +70,14 @@ public class ModePopup {
 			if (popup.isShowing()) {
 				popup.update();
 			} else {
-				// The candidates host is full-screen (KikaIME structure), so Gravity.CENTER puts the pill at
-				// the screen center. A POSITIVE offset drops it to the lower-middle so it floats over the
-				// message area rather than up near the title bar. Make the divisor larger to raise it, smaller
-				// (or negative) to lower it further.
-				final int upOffset = Math.round(ims.getResources().getDisplayMetrics().heightPixels / 10f);
-				popup.showAtLocation(anchor, Gravity.CENTER, 0, upOffset);
+				// r49: the IME window is now only as tall as the bar (KikaIME structure — no full-screen host),
+				// so Gravity.CENTER would center on the bar and push the pill off the bottom of the screen —
+				// that is why the pill stopped appearing. The IME window's BOTTOM always aligns with the screen
+				// bottom (window gravity = bottom), so anchor to Gravity.BOTTOM and offset UP by ~55% of the
+				// screen height to float the pill in the upper-middle, regardless of how tall the bar currently
+				// is. setClippingEnabled(false) (set above) lets the pill extend beyond the short window.
+				final int upFromBottom = Math.round(ims.getResources().getDisplayMetrics().heightPixels * 0.55f);
+				popup.showAtLocation(anchor, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, upFromBottom);
 			}
 
 			Logger.d("KT9pop", "shown '" + text + "' isShowing=" + popup.isShowing());

@@ -118,6 +118,13 @@ abstract class UiHandler extends AbstractHandler {
 			if (mainView != null && mainView.getView() != null) {
 				mainView.getView().setVisibility(show ? android.view.View.VISIBLE : android.view.View.GONE);
 			}
+			// r50 (KikaIME-EXACT, from decompiled HDKeyboardService): keep the candidates view SHOWN the whole
+			// time a field is focused. KikaIME calls setCandidatesViewShown(true) in onStartInput and only sets
+			// false in onFinishInput — it never hides it mid-session (it just changes internal pages). Hiding it
+			// whenever there was no content tore the IME window down, so the mode pill had no window to anchor to
+			// (it never appeared). The BAR's own visibility (set above) is what paints/clears the strip; with no
+			// host and the transparent ImeWindowTheme, a GONE bar paints nothing (no black), and onComputeInsets
+			// reserves nothing while the bar is hidden — so an empty field still shows no strip.
 			setCandidatesViewShown(true);
 			// KT9 diagnostics: record the content decision + resulting geometry each refresh (tag KT9geo).
 			logGeometry("refreshTray typingPossible=" + isTypingPossible() + " barShown=" + show);
@@ -258,6 +265,9 @@ abstract class UiHandler extends AbstractHandler {
 		if (mainView != null && mainView.getView() != null) {
 			mainView.getView().setVisibility(trayBarShown ? android.view.View.VISIBLE : android.view.View.GONE);
 		}
+		// r50 (KikaIME-EXACT): show the candidates view now and keep it shown while focused (see
+		// refreshTrayVisibility) so the IME window stays alive for the mode pill. The bar's visibility (set
+		// above) controls whether the strip actually paints.
 		setCandidatesViewShown(true);
 	}
 

@@ -136,7 +136,12 @@ android {
 		applicationId = APPLICATION_ID
 		buildFeatures.buildConfig = true
 		minSdk = 24
-		targetSdk = 36
+		// KT9 fork (r39): lowered 36 -> 30 to match KikaIME, which has NO bottom nav-bar reservation on this
+		// device. Every theme/flag/inset/margin approach failed to remove the ~30px the framework reserves for
+		// the IME window; targetSdk is the last remaining difference from KikaIME. compileSdk stays 36 (that
+		// controls API availability; targetSdk controls runtime behaviors like this reservation). This is a
+		// personal sideloaded build, so the Play Store targetSdk floor does not apply.
+		targetSdk = 30
 		versionCode = getVerCode()
 		versionName = getVerName()
 

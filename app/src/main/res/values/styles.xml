@@ -33,6 +33,35 @@
 		<item name="colorSuggestionSeparator">@color/suggestion_separator</item>
 	</style>
 
+	<!--
+		KT9 fork (r45): the IME WINDOW theme, mirroring KikaIME's IMEServiceTheme. KikaIME's decompiled theme is
+		AppCompat-based (Theme.AppCompat.Light.DarkActionBar) with a transparent window background and transparent
+		colorPrimaryDark, and it is applied via setTheme() in onCreate. AppCompat themes do NOT set
+		windowDrawsSystemBarBackgrounds, so the framework never reserves the phantom navigation-bar strip that the
+		Material parent (TTheme) caused — which is why KikaIME's window is full-screen with no bottom gap and no
+		FLAG_LAYOUT_NO_LIMITS. The keyboard KEYS keep their Material styling because they inflate with their own
+		R.style.TTheme context (see ThemedContextBuilder); this theme only affects the window chrome.
+	-->
+	<style name="ImeWindowTheme" parent="Theme.AppCompat.DayNight">
+		<item name="android:windowBackground">@android:color/transparent</item>
+		<item name="android:windowNoTitle">true</item>
+		<item name="android:windowActionBar">false</item>
+		<item name="android:colorPrimaryDark">@android:color/transparent</item>
+		<item name="colorPrimaryDark">@android:color/transparent</item>
+		<item name="android:backgroundDimEnabled">false</item>
+		<!--
+			r46: THE decisive line. The r45 device log showed drawsSysBars=TRUE, so the framework was still
+			painting the (default black) navigation-bar background into the ~30px strip the decor reserved at the
+			bottom — that black strip is exactly the "black bar" seen in the rest state and below the suggestions.
+			Turning windowDrawsSystemBarBackgrounds off stops the reservation AND the black fill; painting the two
+			system-bar colors transparent is a belt-and-suspenders guarantee that nothing draws black there even
+			if some path still reserves the strip. This is what makes KikaIME's window full-screen with no gap.
+		-->
+		<item name="android:windowDrawsSystemBarBackgrounds">false</item>
+		<item name="android:navigationBarColor">@android:color/transparent</item>
+		<item name="android:statusBarColor">@android:color/transparent</item>
+	</style>
+
 	<style name="TTheme.AddWord" parent="Theme.AppCompat.DayNight.Dialog.Alert">
 		<item name="windowNoTitle">true</item> <!-- hide some weird floating rectangle above the dialog -->
 	</style>

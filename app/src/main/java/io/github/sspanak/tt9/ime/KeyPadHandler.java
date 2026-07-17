@@ -28,6 +28,14 @@ abstract class KeyPadHandler extends UiHandler {
 	 */
 	@Override
 	public void onCreate() {
+		// KT9 fork (r45): apply the IME WINDOW theme BEFORE super.onCreate() (which creates the SoftInputWindow),
+		// exactly as KikaIME does. ImeWindowTheme is AppCompat-based with no system-bar backgrounds, so the
+		// framework never reserves the phantom nav-bar strip that the Material parent caused — giving a
+		// full-screen, gap-free window like KikaIME, with no FLAG_LAYOUT_NO_LIMITS (which was spilling the window
+		// under real nav bars). NOTE: r38 tried this via android:theme on the <service>, which is IGNORED for
+		// IMEs; it must be setTheme() here. And that attempt used a Material parent at targetSdk 36 — r45 uses
+		// an AppCompat parent at targetSdk 30, matching KikaIME's proven combination.
+		setTheme(io.github.sspanak.tt9.R.style.ImeWindowTheme);
 		super.onCreate();
 		settings = new SettingsStore(getApplicationContext());
 
