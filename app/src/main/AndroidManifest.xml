@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:tools="http://schemas.android.com/tools"
-	android:versionCode="1616"
-	android:versionName="66.16"
+	android:versionCode="1617"
+	android:versionName="66.17"
 	android:installLocation="internalOnly"
 	xmlns:android="http://schemas.android.com/apk/res/android">
 

@@ -108,27 +108,22 @@ public class TraditionalT9 extends PremiumHandler {
 		super.onComputeInsets(outInsets);
 
 		if (settings != null && !settings.isMainLayoutLarge()) {
-			// Tray/small — THE push-up fix (r55). contentTopInsets/visibleTopInsets are measured from the TOP OF THE
-			// IME WINDOW, not the screen (AOSP: "measured from the top of the input method window"). Our window is a
-			// WRAP strip docked at the bottom (top ≈ y266). r53–r54 reported the bar's ON-SCREEN top (266), so the
-			// framework placed the reserved region at windowTop+266 = y532 (off-screen) and concluded there was
-			// nothing to avoid — the app never resized. r55 reports the bar's WINDOW-RELATIVE top instead
-			// (getLocationInWindow, ≈0), so the reserved region is the whole docked window and the app resizes up to
-			// the window's top edge (y266). When the bar is hidden we reserve nothing by reporting the full window
-			// height (decor height), so the app stays full-screen.
+			// Tray/small. contentTopInsets/visibleTopInsets are window-relative (AOSP: "measured from the top of the
+			// input method window"); the window is a WRAP strip docked at the bottom (top ≈ y266). r55 fixed the
+			// push-up by reserving the docked window. r61 fixes the GAP the ROM's baked-in bottom margin leaves:
+			// this TCL device injects an UNREMOVABLE `margin`px (30) bottom margin into the IME decor — r57–r60 tried
+			// every window flag (drawsSysBars, setDecorFitsSystemWindows(false), LAYOUT_NO_LIMITS, systemUiVisibility,
+			// consuming insets) and mB stayed 30 with sysBottom=0, proving it is not inset-derived. So we WORK AROUND
+			// it: reserve only the bar's height (contentTopInsets = margin -> the app avoids just the bottom barHeight
+			// and no longer over-pushes by 30px), and shift the bar DOWN by `margin` (applyFlushBarShift) so it draws
+			// flush at the true screen bottom rather than margin px above it.
 			final View decor = (getWindow() != null && getWindow().getWindow() != null) ? getWindow().getWindow().getDecorView() : null;
 			final int decorH = decor != null ? decor.getHeight() : 0;
+			final int margin = imeBottomMarginPx();
 			int top;
 			if (trayBarShown) {
-				final View bar = mainView != null ? mainView.getView() : null;
-				int barTopInWindow = -1;
-				if (bar != null && bar.getHeight() > 0 && bar.isShown()) {
-					final int[] loc = new int[2];
-					bar.getLocationInWindow(loc);
-					barTopInWindow = Math.max(0, loc[1]);
-					lastGoodInsetTop = barTopInWindow;
-				}
-				top = barTopInWindow >= 0 ? barTopInWindow : (lastGoodInsetTop >= 0 ? lastGoodInsetTop : 0);
+				top = margin;                // reserve (windowHeight - margin) = the bar's height, at the very bottom
+				applyFlushBarShift(margin);  // and move the bar into that strip so it renders flush at the bottom
 			} else {
 				// Bar hidden: contentTopInsets == the full window height means "no IME content", so no app resize.
 				top = decorH > 0 ? decorH : 0;
@@ -142,10 +137,55 @@ public class TraditionalT9 extends PremiumHandler {
 
 		// KT9 diagnostics: log the insets handed to the host app, but only when they change (this runs every
 		// frame). content/visible are measured from the TOP of the screen. Grep logcat for "KT9geo".
-		final String insetsLine = "insets content=" + outInsets.contentTopInsets + " visible=" + outInsets.visibleTopInsets + " touchable=" + outInsets.touchableInsets + " trayBarShown=" + trayBarShown;
+		final String insetsLine = "insets content=" + outInsets.contentTopInsets + " visible=" + outInsets.visibleTopInsets + " touchable=" + outInsets.touchableInsets + " trayBarShown=" + trayBarShown + " margin=" + lastGoodMarginPx;
 		if (!insetsLine.equals(lastInsetsLog)) {
 			lastInsetsLog = insetsLine;
 			Logger.d("KT9geo", insetsLine);
+		}
+	}
+
+
+	// r61: the IME decor's baked-in bottom margin (30px on this TCL ROM), read live so we adapt to whatever it is.
+	// No window API removes it (r57–r60 all failed), so onComputeInsets reserves only the bar height and we shift
+	// the bar into that strip. Falls back to the last non-zero value while the decor is mid-relayout.
+	private int lastGoodMarginPx = 0;
+	private int imeBottomMarginPx() {
+		try {
+			final android.view.Window w = getWindow() != null ? getWindow().getWindow() : null;
+			if (w != null && w.getDecorView() instanceof android.view.ViewGroup) {
+				final android.view.ViewGroup decor = (android.view.ViewGroup) w.getDecorView();
+				for (int i = 0; i < decor.getChildCount(); i++) {
+					final android.view.ViewGroup.LayoutParams lp = decor.getChildAt(i).getLayoutParams();
+					if (lp instanceof android.view.ViewGroup.MarginLayoutParams) {
+						final int bm = ((android.view.ViewGroup.MarginLayoutParams) lp).bottomMargin;
+						if (bm > 0) { lastGoodMarginPx = bm; return bm; }
+					}
+				}
+			}
+		} catch (Exception ignored) {}
+		return lastGoodMarginPx;
+	}
+
+	// r61: shift tt9's bar DOWN by the ROM margin so it renders flush at the true screen bottom, and disable clipping
+	// on the whole IME decor subtree so the shifted bar is not cut off by the short (barHeight-tall) content wrapper
+	// it lives inside. Cheap: the IME decor subtree is ~7 views. Idempotent.
+	private void applyFlushBarShift(int margin) {
+		try {
+			final android.view.Window w = getWindow() != null ? getWindow().getWindow() : null;
+			final View decor = w != null ? w.getDecorView() : null;
+			if (decor != null) { setNoClipRecursive(decor); }
+			final View bar = mainView != null ? mainView.getView() : null;
+			if (bar != null && bar.getTranslationY() != margin) { bar.setTranslationY(margin); }
+		} catch (Exception ignored) {}
+	}
+	private void setNoClipRecursive(View v) {
+		if (v instanceof android.view.ViewGroup) {
+			final android.view.ViewGroup vg = (android.view.ViewGroup) v;
+			vg.setClipChildren(false);
+			vg.setClipToPadding(false);
+			for (int i = 0; i < vg.getChildCount(); i++) {
+				setNoClipRecursive(vg.getChildAt(i));
+			}
 		}
 	}
 
@@ -223,21 +263,62 @@ public class TraditionalT9 extends PremiumHandler {
 	@Override
 	public void onWindowShown() {
 		super.onWindowShown();
-		// r56: REMOVE the decor's 30px bottom margin. The DISPLAY log proves navBar=0 on this device
-		// (getSize==getRealSize==320), so that margin is NOT a nav-bar reservation — it is an AppCompat/compileSdk
-		// toolchain artifact (KikaIME, built against the old support lib, has none). Left in, it made the docked
-		// window 54px while the bar is only 24px, so r55's window-relative inset reserved the full 54px and the app
-		// pushed up 30px too far, leaving a dead strip below the bar (the "extra gap"). Zeroing it shrinks the window
-		// to the bar's real height (24px, flush at the true screen bottom y320), so the app reserves exactly the bar.
-		// installImeMarginFixer() is a pre-draw listener that re-zeroes it on any frame where the framework re-adds it.
-		installImeMarginFixer();
-		removeImeBottomMargin();
+		// r57: the 30px strip is reserved because the IME window carries FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS (the FLAGS
+		// log shows drawsSysBars=true even though ImeWindowTheme sets windowDrawsSystemBarBackgrounds=false — the
+		// theme attr is ignored for IME windows on this ROM). That flag is now cleared in onConfigureWindow, which
+		// runs BEFORE each layout, so the strip is never reserved — stable, no flicker. r56's runtime margin removal
+		// is gone: it fought the framework every frame and made the window oscillate 54px<->24px (the black band).
 		logDisplaySizes();
 		final View decor = getWindow() != null && getWindow().getWindow() != null ? getWindow().getWindow().getDecorView() : null;
 		if (decor != null) {
-			decor.post(() -> { removeImeBottomMargin(); logGeometry("onWindowShown"); logFrames("onWindowShown"); logWindowFlags("onWindowShown"); logWindowFrame("onWindowShown"); dumpImeTree(); });
+			decor.post(() -> { logGeometry("onWindowShown"); logFrames("onWindowShown"); logWindowFlags("onWindowShown"); logWindowFrame("onWindowShown"); dumpImeTree(); });
 		} else {
 			logGeometry("onWindowShown(no decor)");
+		}
+	}
+
+
+	@Override
+	public void onConfigureWindow(android.view.Window win, boolean isFullscreen, boolean isCandidatesOnly) {
+		super.onConfigureWindow(win, isFullscreen, isCandidatesOnly);
+		// r57: THE stable margin fix. This ROM reserves a phantom ~30px "system bar" strip at the bottom of the IME
+		// window whenever FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS is set — and it IS set (drawsSysBars=true), because the
+		// theme's windowDrawsSystemBarBackgrounds=false is ignored for IME windows here. onConfigureWindow runs
+		// BEFORE the window is laid out on every show, so clearing the flag here prevents the strip from ever being
+		// reserved: no margin, no 54px<->24px oscillation (which is what r56's post-layout removal caused). If the
+		// FLAGS log still shows drawsSysBars=true after this, the flag is being re-set even later and we escalate.
+		if (win != null) {
+			win.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+			win.clearFlags(android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
+			win.clearFlags(android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+			// r59: THE correct lever. The 30px is PhoneWindow fitting the IME window's bottom system-window inset as
+			// a MARGIN on its decor content (the stock action_mode_bar_stub/content/parentPanel tree). r58 called
+			// decor.setFitsSystemWindows(false) — wrong object; PhoneWindow's content-insetting is controlled by the
+			// WINDOW-level Window.setDecorFitsSystemWindows(boolean) (API 30, which this device is). Turning it off
+			// tells PhoneWindow NOT to inset its content for system windows, so the 30px margin is never applied.
+			// navBar=0 here, so drawing edge-to-edge at the bottom costs nothing. This is why KikaIME needs no such
+			// call: its 2018 support-lib/compileSdk build predates this decor-fits-system-windows insetting entirely.
+			if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+				win.setDecorFitsSystemWindows(false);
+			}
+			// r60: exhaust the window-level levers that stop the framework reserving a bottom strip, all at once.
+			// LAYOUT_NO_LIMITS lets the docked window reach the true screen edge instead of stopping at an inset;
+			// LAYOUT_IN_SCREEN lets it lay out over the whole screen. navBar=0, so neither can spill under a real
+			// nav bar (the earlier worry that made me drop NO_LIMITS). (INSET_DECOR is deliberately NOT set — it
+			// would re-inset the content for decor, the opposite of what we want.)
+			win.addFlags(android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+			win.addFlags(android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN);
+			final View decor = win.getDecorView();
+			if (decor != null) {
+				decor.setFitsSystemWindows(false);
+				// Lay the decor out as if the system bars are hidden, so no space is reserved for them.
+				decor.setSystemUiVisibility(
+					android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+						| android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+						| android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+				decor.setOnApplyWindowInsetsListener((v, insets) -> insets.consumeSystemWindowInsets());
+				decor.requestApplyInsets();
+			}
 		}
 	}
 
@@ -458,7 +539,7 @@ public class TraditionalT9 extends PremiumHandler {
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r56 — kill the extra gap. r55 nailed the push-up (window-relative inset), but the docked window was 54px (24px bar + 30px decor margin) so the app reserved the full 54px and pushed up 30px too far, leaving a dead strip below the bar. The DISPLAY log proves navBar=0, so that 30px is a toolchain artifact (AppCompat/compileSdk), not nav-bar space — r56 zeroes it (installImeMarginFixer + removeImeBottomMargin), shrinking the window to the bar's true 24px, flush at the bottom, so the app reserves exactly the bar. Prior note kept for history — r55 was: THE actual push-up fix (coordinate space). r54's WFRAME log was decisive: decorOnScreen=[0,266 240x54] rootH=54 — the IME window is a 54px strip docked at the bottom, and a match_parent host does NOT expand it (the framework's candidates container wraps content). The real bug: contentTopInsets is measured FROM THE TOP OF THE IME WINDOW, not the screen. I was reporting the bar's ON-SCREEN top (266), so the framework placed the reserved region at windowTop(266)+266 = y532, off-screen, and resized nothing — every prior build failed for this one reason. r55 reports the bar's WINDOW-RELATIVE top (getLocationInWindow, ≈0), so the reserved region is the whole docked window and the app finally resizes up to y266. Reverted the dead full-screen host. NOTE: because the decor still carries a 30px bottom margin, expect the bar to sit ~30px above the very bottom with a thin strip below it — that is now a safe one-line follow-up (navBar=0).";
+	public static final String KT9_BUILD = "KT9 build r61 — WORK AROUND the ROM margin (it is unremovable). r57–r60 proved this TCL ROM bakes a fixed 30px bottom margin into the IME decor that no window API touches (mB stayed 30 through every flag; sysBottom=0 shows it is not even inset-derived). So instead of removing it: onComputeInsets now reserves only the bar's height (contentTopInsets = the margin, so the app avoids just the bottom ~24px and stops over-pushing by 30px), and applyFlushBarShift() shifts the bar DOWN by the margin (View.translationY) with clipChildren disabled on the decor subtree, so the bar renders flush at the true screen bottom. Net: app content ends exactly at the bar's top, bar sits flush at the bottom, no gap — the KikaIME look, achieved by moving the bar rather than fighting the ROM. If the bar renders clipped/half, the clip-disable missed an ancestor and I widen it. Prior: r55 push-up; r57 no oscillation.";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {
