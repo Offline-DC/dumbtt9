@@ -186,10 +186,55 @@ public class TraditionalT9 extends PremiumHandler {
 		}
 		final View decor = getWindow() != null && getWindow().getWindow() != null ? getWindow().getWindow().getDecorView() : null;
 		if (decor != null) {
-			decor.post(() -> { logGeometry("onWindowShown"); logFrames("onWindowShown"); });
+			decor.post(() -> { logGeometry("onWindowShown"); logFrames("onWindowShown"); dumpImeTree(); });
 		} else {
 			logGeometry("onWindowShown(no decor)");
 		}
+	}
+
+
+	// KT9 diagnostics: dump the IME decor's view tree (bounds, padding, bottom-margin) to a shallow depth, to
+	// locate exactly which view holds the ~30px between the candidate frame (y290) and the true bottom (y320).
+	// Grep logcat for "KT9geo" and read the "TREE" block.
+	private void dumpImeTree() {
+		try {
+			final android.view.Window w = getWindow() != null ? getWindow().getWindow() : null;
+			if (w == null) { Logger.d("KT9geo", "TREE: no window"); return; }
+			final StringBuilder sb = new StringBuilder("TREE (decor subtree, depth<=4):");
+			dumpTree(w.getDecorView(), 0, sb);
+			Logger.d("KT9geo", sb.toString());
+		} catch (Exception e) {
+			Logger.d("KT9geo", "TREE ERR " + e.getMessage());
+		}
+	}
+
+	private void dumpTree(View v, int depth, StringBuilder sb) {
+		if (v == null || depth > 4) {
+			return;
+		}
+		final int[] l = new int[2];
+		v.getLocationOnScreen(l);
+		sb.append("\n");
+		for (int i = 0; i < depth; i++) { sb.append("  "); }
+		sb.append(v.getClass().getSimpleName());
+		try {
+			if (v.getId() != View.NO_ID) { sb.append("#").append(getResources().getResourceEntryName(v.getId())); }
+		} catch (Exception ignored) {}
+		sb.append(" @y").append(l[1]).append(" ").append(v.getWidth()).append("x").append(v.getHeight())
+			.append(" padTB=").append(v.getPaddingTop()).append("/").append(v.getPaddingBottom())
+			.append(" mB=").append(marginBottom(v))
+			.append(" vis=").append(v.getVisibility());
+		if (v instanceof android.view.ViewGroup) {
+			final android.view.ViewGroup vg = (android.view.ViewGroup) v;
+			for (int i = 0; i < vg.getChildCount(); i++) {
+				dumpTree(vg.getChildAt(i), depth + 1, sb);
+			}
+		}
+	}
+
+	private int marginBottom(View v) {
+		final android.view.ViewGroup.LayoutParams lp = v.getLayoutParams();
+		return lp instanceof android.view.ViewGroup.MarginLayoutParams ? ((android.view.ViewGroup.MarginLayoutParams) lp).bottomMargin : -1;
 	}
 
 
@@ -226,7 +271,7 @@ public class TraditionalT9 extends PremiumHandler {
 
 	// KT9 fork: bump this on every build so you can confirm from logcat which build is actually
 	// running (grep for "KT9 build"). If the number here doesn't match, you're on a stale APK.
-	public static final String KT9_BUILD = "KT9 build r30 — extend window through bottom nav-bar inset (bar to true bottom); + FRAMES diagnostics (input/candidate frames, sys insets)";
+	public static final String KT9_BUILD = "KT9 build r31 — diagnostic: full IME view-tree dump (TREE) to pinpoint the 30px between candidate frame and true bottom";
 
 	@Override
 	public void onStartInput(EditorInfo inputField, boolean restarting) {
