@@ -162,7 +162,10 @@ abstract public class SuggestionHandler extends TypingHandler {
 		}
 
 		final ArrayList<String> suggestions = mInputMode.getSuggestions();
-		suggestionOps.set(suggestions, mInputMode.getRecommendedSuggestionIdx(), mInputMode.containsGeneratedSuggestions());
+		// KT9 fork: only show the suggestion strip in predictive (TT9) mode, the punctuation panel, or voice.
+		// In ABC (en/En/EN) and 123 modes, hide the strip and show the mode label instead. forceHidden keeps the
+		// suggestion DATA, so multi-tap cycling and the composing-text preview still work — only the strip is hidden.
+		suggestionOps.set(suggestions, mInputMode.getRecommendedSuggestionIdx(), mInputMode.containsGeneratedSuggestions(), shouldHideSuggestionStrip());
 
 		// either accept the first one automatically (when switching from punctuation to text
 		// or vice versa), or schedule auto-accept in N seconds (in ABC mode)
@@ -275,11 +278,25 @@ abstract public class SuggestionHandler extends TypingHandler {
 	}
 
 
+	// KT9 fork: the suggestion strip is shown only in predictive (TT9) mode, the punctuation panel, and voice
+	// (voice uses the status-bar message, not this strip). In ABC (en/En/EN) and 123 it is hidden and the mode
+	// label shows instead. Kept as one helper so handleSuggestions and handleGuesses agree.
+	private boolean shouldHideSuggestionStrip() {
+		return (InputModeKind.isABC(mInputMode) || InputModeKind.isNumeric(mInputMode)) && !mInputMode.isPunctuationPanelShown();
+	}
+
+
 	@MainThread
 	private boolean handleGuesses() {
 		final ArrayList<String> guesses = mindReader.getGuesses();
 		if (guesses.isEmpty()) {
 			return false;
+		}
+
+		// KT9 fork: no next-word guesses in the strip for ABC/123 — the strip stays hidden there. Return true
+		// (treated as handled) so we don't keep waiting for guesses we intentionally suppress.
+		if (shouldHideSuggestionStrip()) {
+			return true;
 		}
 
 		suggestionOps.cancelDelayedAccept();

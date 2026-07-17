@@ -123,7 +123,16 @@ public class SuggestionOps {
 
 
 	public void set(@Nullable ArrayList<String> suggestions, int selectIndex, boolean containsGenerated) {
-		setVisibility(settings, suggestions == null || suggestions.isEmpty(), false);
+		set(suggestions, selectIndex, containsGenerated, false);
+	}
+
+
+	// KT9 fork: forceHidden keeps the suggestion DATA (so ABC multi-tap cycling and the composing-text preview
+	// still work) but hides the strip and shows the mode label instead. Used for ABC (en/En/EN) and 123 modes,
+	// where we don't want the letter/number options in the bar — only predictive (TT9), the punctuation panel,
+	// and voice show the strip.
+	public void set(@Nullable ArrayList<String> suggestions, int selectIndex, boolean containsGenerated, boolean forceHidden) {
+		setVisibility(settings, suggestions == null || suggestions.isEmpty(), false, forceHidden);
 		if (suggestionBar != null) {
 			suggestionBar.setMany(suggestions, selectIndex, containsGenerated);
 		}
@@ -302,7 +311,12 @@ public class SuggestionOps {
 
 
 	private void setVisibility(@Nullable SettingsStore settings, boolean willBeEmpty, boolean forceVisible) {
-		final boolean areSuggestionsVisible = isInputLimited || forceVisible || (settings != null && settings.getShowSuggestions());
+		setVisibility(settings, willBeEmpty, forceVisible, false);
+	}
+
+
+	private void setVisibility(@Nullable SettingsStore settings, boolean willBeEmpty, boolean forceVisible, boolean forceHidden) {
+		final boolean areSuggestionsVisible = !forceHidden && (isInputLimited || forceVisible || (settings != null && settings.getShowSuggestions()));
 
 		if (suggestionBar != null) {
 			suggestionBar.setVisible(areSuggestionsVisible);
