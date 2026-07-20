@@ -156,13 +156,13 @@ public class StatusBar {
 
 
 	public void setText(InputMode inputMode) {
-		setText("[ " + inputMode.toString() + " ]");
+		// KT9 fork: no [ ] brackets around the mode label — show "en" / "TT9", not "[ en ]".
+		setText(inputMode.toString());
 	}
 
 
 	public void setText(VoiceInputOps voiceInputOps) {
-		// KT9 fork: no [ ] brackets around the voice prompt ("speak now (press * when done)"); the
-		// brackets are only for the short mode labels like [ en ] / [ TT9 ].
+		// KT9 fork: no [ ] brackets around the voice prompt ("speak now (press * when done)").
 		setText(voiceInputOps.toString());
 	}
 
@@ -177,7 +177,7 @@ public class StatusBar {
 
 	private void onLoading() {
 		if (loadingBar.inProgress()) {
-			setText("[ " + loadingBar.getShortMessage() + " ]");
+			setText(loadingBar.getShortMessage());
 		} else if (loadingBar.isCancelled() || loadingBar.isFailed()) {
 			setError(loadingBar.getShortMessage());
 		} else {

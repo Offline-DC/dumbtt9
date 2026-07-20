@@ -44,9 +44,9 @@ public class ProfitPreference extends Preference {
 	protected void init(@NonNull Context context) {
 		setTitle(context.getString(R.string.donate_title));
 		String appName = context.getString(R.string.app_name_short);
-		setSummary(
-			context.getString(R.string.donate_summary, appName) + " " + context.getString(R.string.donate_hold_to_open)
-		);
+		// KT9 fork: summary is just the donate line — the "press and hold to open in the
+		// browser" hint is dropped (the new wording already says to press and hold).
+		setSummary(context.getString(R.string.donate_summary, appName));
 	}
 
 
