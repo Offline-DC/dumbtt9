@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-	<string name="app_name" translatable="false">Dumb TT9</string>
-	<string name="app_name_short" translatable="false">Dumb TT9</string>
+	<string name="app_name" translatable="false">Dumb Keys</string>
+	<string name="app_name_short" translatable="false">Dumb Keys</string>
 	<string name="dictionary_url" translatable="false">https://raw.githubusercontent.com/sspanak/tt9/%1$s/downloads/%2$s</string>
 	<string name="system_night_mode" translatable="false">n</string>
 
@@ -225,7 +225,7 @@
 	<string name="dictionary_update_update">Load</string>
 
 	<string name="donate_title">Donate</string>
-	<string name="donate_summary">If you like %1$s, you could buy me a beer.</string>
+	<string name="donate_summary">If you like %1$s, support the OG author by pressing and holding.</string>
 	<string name="donate_hold_to_open">Press and hold to open in the browser.</string>
 
 	<string name="fn_key_order_column_1">Column 1</string>

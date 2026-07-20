@@ -634,8 +634,8 @@ class ModeWords extends ModeCheonjiin {
 	@NonNull
 	@Override
 	public String toString() {
-		// KT9 fork: the predictive mode is always labelled "TT9".
-		return "TT9";
+		// KT9 fork: the predictive mode is always labelled "T9".
+		return "T9";
 	}
 
 
