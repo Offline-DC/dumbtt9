@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 	<!-- color attribute map -->
 	<style name="TTheme" parent="Theme.MaterialComponents.DayNight">
 		<item name="colorKeyboardBackground">@color/keyboard_background</item>
@@ -150,29 +150,31 @@
 		<item name="android:layout_width">match_parent</item>
 	</style>
 
-	<style name="TTheme.MainSmall.StatusBar.Status" parent="">
+	<!-- KT9 fork: base status style, shared by every API level. The API 26+ auto-shrink attributes
+	     (android:autoSize*) live in values-v26/styles.xml instead of here — they were only ever
+	     honoured on API 26+ anyway, so scoping them there keeps behaviour identical on our API 30
+	     fleet while letting lint pass at minSdk 24. Previously they sat here behind a
+	     tools:ignore="NewApi", which lint does NOT honour on a style's child <item> elements — that
+	     is why every master CI build failed on lintFullDebug. -->
+	<style name="TTheme.MainSmall.StatusBar.StatusBase" parent="">
 		<item name="android:gravity">center</item>
 		<item name="android:layout_height">match_parent</item>
 		<item name="android:layout_width">match_parent</item>
 
-		<!-- KT9 fork: auto-shrink long status text (e.g. the voice "speak now (press * when done)" prompt)
-		     so it fits on one line, while short labels like [ en ] / [ TT9 ] stay at the full size. -->
 		<item name="android:maxLines">1</item>
-		<item name="android:autoSizeTextType">uniform</item>
-		<item name="android:autoSizeMinTextSize">8sp</item>
-		<item name="android:autoSizeMaxTextSize">@dimen/status_bar_text_size</item>
-		<item name="android:autoSizeStepGranularity">1sp</item>
 
 		<item name="android:textSize">@dimen/status_bar_text_size</item>
 		<item name="android:textColor">?attr/colorKeyboardText</item>
 		<!-- KT9 fork: brand font (Helvetica Now). -->
 		<item name="android:fontFamily">@font/helvetica_now</item>
 		<item name="android:includeFontPadding">false</item>
-		<!-- KT9 fork: equal padding above and below the [ mode ] label so it sits centered with the same
+		<!-- KT9 fork: equal padding above and below the mode label so it sits centered with the same
 		     gap top and bottom. -->
 		<item name="android:paddingTop">4dp</item>
 		<item name="android:paddingBottom">4dp</item>
 	</style>
+
+	<style name="TTheme.MainSmall.StatusBar.Status" parent="TTheme.MainSmall.StatusBar.StatusBase" />
 
 	<style name="TTheme.MainSmall.StatusBar.SuggestionList" parent="">
 		<item name="android:layout_gravity">center_vertical</item>

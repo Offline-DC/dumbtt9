@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+	<!-- KT9 fork: auto-shrink long status text (e.g. the voice "speak now (press * when done)" prompt)
+	     so it fits on one line, while short labels like en / T9 stay at the full size.
+
+	     android:autoSize* is API 26+, so it lives in values-v26 rather than values. On API 24-25 the
+	     base style applies unchanged (those attributes were silently ignored there anyway), and on our
+	     API 30 fleet the behaviour is exactly as before. Keeping them here — instead of behind a
+	     tools:ignore="NewApi", which lint does not honour on a style's <item> children — is what makes
+	     `gradlew lint` pass, and therefore the master CI build. -->
+	<style name="TTheme.MainSmall.StatusBar.Status" parent="TTheme.MainSmall.StatusBar.StatusBase">
+		<item name="android:autoSizeTextType">uniform</item>
+		<item name="android:autoSizeMinTextSize">8sp</item>
+		<item name="android:autoSizeMaxTextSize">@dimen/status_bar_text_size</item>
+		<item name="android:autoSizeStepGranularity">1sp</item>
+	</style>
+
+</resources>
