@@ -234,7 +234,11 @@ public class AppHacks {
 	 * to reset the keyboard on connection restart.
 	 */
 	public boolean isRestartForbidden() {
-		return inputType == null || !inputType.isFirefoxUrl();
+		// KT9 fork: Spotify added alongside Firefox's URL bar. Its login form moves focus to the
+		// password field on its own once the email looks complete (i.e. when "@" is typed), so that
+		// restart is real and must be honoured — otherwise we keep writing to the dead connection of
+		// the old field. See InputType.isSpotifyLogin().
+		return inputType == null || (!inputType.isFirefoxUrl() && !inputType.isSpotifyLogin());
 	}
 
 

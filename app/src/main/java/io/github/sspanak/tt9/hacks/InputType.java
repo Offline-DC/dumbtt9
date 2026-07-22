@@ -162,6 +162,24 @@ public class InputType extends StandardInputType {
 	}
 
 
+	/**
+	 * KT9 fork: Spotify's login form moves focus from the "Email or username" field to the password
+	 * field by itself, as soon as the address looks complete — which happens the moment you type the
+	 * "@". That is a REAL connection restart that we must honour.
+	 *
+	 * Everywhere else we ignore restarts (see AppHacks.isRestartForbidden), so the keyboard kept its
+	 * old TextField pointing at the username box after Spotify had already torn it down. Every
+	 * subsequent keystroke then went to a dead connection — logcat shows
+	 * "setComposingText on inactive InputConnection" — leaving the user unable to type in either
+	 * field and unable to get back to the username one.
+	 *
+	 * Scoped to the Spotify package so no other app's typing behaviour changes.
+	 */
+	public boolean isSpotifyLogin() {
+		return field != null && "com.spotify.music".equals(field.packageName);
+	}
+
+
 	public boolean isGmailComposeMail() {
 		final String GMAIL = "com.google.android.gm";
 		return

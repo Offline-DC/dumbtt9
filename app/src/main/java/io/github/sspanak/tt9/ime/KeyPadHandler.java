@@ -85,6 +85,17 @@ abstract class KeyPadHandler extends UiHandler {
 			Key.setHandled(KeyEvent.KEYCODE_BACK, false);
 		}
 
+		// KT9 fork: swallow auto-repeat on the OK key. Holding OK even slightly too long makes
+		// Android emit repeat events (~400ms, then every ~50ms). Each one re-entered onOK(), and
+		// after the first press had already consumed the suggestion/panel, the repeats fell through
+		// to performing the field's editor action — firing IME_ACTION_NEXT and then ENTER dozens of
+		// times. In a login form that jumped to the password field and kept hammering it, so the
+		// user could not get back. Repeats are consumed here (return true) rather than ignored, so
+		// they do not leak through to the app either. A genuine hold is handled by onKeyLongPress.
+		if (Key.isOK(keyCode) && event.getRepeatCount() > 0) {
+			return true;
+		}
+
 		return
 			Key.setHandled(KeyEvent.KEYCODE_ENTER, Key.isOK(keyCode) && onOK())
 			|| handleHotkey(keyCode, true, false, true) // hold a hotkey, handled in onKeyLongPress())
