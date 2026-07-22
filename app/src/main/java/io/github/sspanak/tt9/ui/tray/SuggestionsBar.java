@@ -100,6 +100,11 @@ public class SuggestionsBar {
 		animator.setChangeDuration(SettingsStore.SUGGESTIONS_TRANSLATE_ANIMATION_DURATION);
 		animator.setAddDuration(SettingsStore.SUGGESTIONS_TRANSLATE_ANIMATION_DURATION);
 		animator.setRemoveDuration(SettingsStore.SUGGESTIONS_TRANSLATE_ANIMATION_DURATION);
+		// KT9 fork: don't animate item CHANGES. Moving the highlight calls notifyItemChanged on the old
+		// and new word, and the default cross-fade makes the cells appear to shuffle/resize slightly as
+		// you traverse. Disabling change animations makes the highlight move crisply; move/add/remove
+		// animations (used for scrolling) are unaffected.
+		animator.setSupportsChangeAnimations(false);
 	}
 
 
