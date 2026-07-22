@@ -47,6 +47,10 @@ public abstract class TypingHandler extends KeyPadHandler {
 	@NonNull protected ArrayList<Integer> allowedInputModes = new ArrayList<>();
 	@NonNull protected InputMode mInputMode = InputMode.getInstance(null, null, null, null, InputMode.MODE_PASSTHROUGH);
 
+	// KT9 fork: set when "*" temporarily left 123 mode to show the punctuation list; we switch back to
+	// 123 once the punctuation panel closes (a character is picked, or it is backspaced away).
+	private boolean returnToNumericAfterPunctuation = false;
+
 	// language
 	protected ArrayList<Integer> mEnabledLanguages;
 	protected Language mLanguage;
@@ -60,6 +64,10 @@ public abstract class TypingHandler extends KeyPadHandler {
 	abstract protected void autoCompleteOnNumber(double loadingId, @NonNull String[] surroundingChars, @Nullable String lastWord, int number);
 	abstract protected void guessNextWord(@NonNull String[] surroundingText, @Nullable String lastWord);
 	abstract protected boolean shouldAcceptGuessesOnNumber(int key);
+
+	// implemented lower in the handler chain (CommandHandler); declared here so this class can switch
+	// the input mode, e.g. leaving 123 mode for En when "*" opens the punctuation list.
+	abstract public void setInputMode(int modeId, int forcedTextCase, boolean lockTextCase);
 
 
 	protected void createSuggestionBar() {
@@ -196,6 +204,7 @@ public abstract class TypingHandler extends KeyPadHandler {
 			recompose(repeat, !textSelection.isEmpty());
 		}
 
+		returnToNumericAfterPunctuationIfNeeded();
 		return true;
 	}
 
@@ -264,7 +273,15 @@ public abstract class TypingHandler extends KeyPadHandler {
 		// It reuses the key-1 special-character flow (row 1 = CHARS_1, row 2 = CHARS_GROUP_1).
 		if ("*".equals(text)) {
 			if (!validateOnly) {
-				showPunctuation();
+				// In 123 mode, key-1 is just the digit "1", so the punctuation flow would type "1"
+				// instead of opening the list. Switch to En (ABC) letter mode first, when the field
+				// allows it, so "*" shows punctuation as it does in the other modes. We remember to
+				// switch back to 123 once the punctuation panel closes.
+				boolean cameFromNumeric = InputModeKind.is123(mInputMode) && allowedInputModes.contains(InputMode.MODE_ABC);
+				if (cameFromNumeric) {
+					setInputMode(InputMode.MODE_ABC, InputMode.CASE_CAPITALIZE, false);
+				}
+				showPunctuation(cameFromNumeric);
 			}
 			return true;
 		}
@@ -322,12 +339,36 @@ public abstract class TypingHandler extends KeyPadHandler {
 	 * pipeline from inside the * key event and injects a stray space. Deferring makes it behave
 	 * exactly like the user pressing "1" as a separate event.
 	 */
-	private void showPunctuation() {
+	private void showPunctuation(boolean armReturnToNumeric) {
 		final int keyCode1 = Key.numberToCode(settings, 1);
 		new Handler(Looper.getMainLooper()).post(() -> {
 			onKeyDown(keyCode1, new KeyEvent(KeyEvent.ACTION_DOWN, keyCode1));
 			onKeyUp(keyCode1, new KeyEvent(KeyEvent.ACTION_UP, keyCode1));
+			// Arm the "return to 123" flag only after the panel is actually open, so the key-1 press
+			// that opens it can't trip an early revert.
+			if (armReturnToNumeric) {
+				returnToNumericAfterPunctuation = true;
+			}
 		});
+	}
+
+
+	/**
+	 * KT9 fork: when "*" temporarily switched us out of 123 mode to show the punctuation list, return
+	 * to 123 once that panel has closed - i.e. after a punctuation character is picked or the panel is
+	 * backspaced away. No-op in every other situation.
+	 */
+	protected void returnToNumericAfterPunctuationIfNeeded() {
+		if (
+			returnToNumericAfterPunctuation
+			&& InputModeKind.isABC(mInputMode)
+			&& !mInputMode.isPunctuationPanelShown()
+		) {
+			returnToNumericAfterPunctuation = false;
+			if (allowedInputModes.contains(InputMode.MODE_123)) {
+				setInputMode(InputMode.MODE_123, InputMode.CASE_UNDEFINED, false);
+			}
+		}
 	}
 
 

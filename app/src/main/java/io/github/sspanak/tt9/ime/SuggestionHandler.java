@@ -107,6 +107,8 @@ abstract public class SuggestionHandler extends TypingHandler {
 		if (!Characters.getSpace(mLanguage).equals(word)) {
 			waitForSpaceTrimKey();
 		}
+
+		returnToNumericAfterPunctuationIfNeeded();
 	}
 
 
