@@ -51,6 +51,11 @@ public abstract class TypingHandler extends KeyPadHandler {
 	// 123 once the punctuation panel closes (a character is picked, or it is backspaced away).
 	private boolean returnToNumericAfterPunctuation = false;
 
+	// KT9 fork: true when the last mode decision fell back to PASSTHROUGH only because the input
+	// connection was not ready yet (a cold resume after the service was killed while idle). Used to
+	// recover the real mode on the first keypress so it isn't leaked to the app as a raw digit.
+	private boolean modeUnresolvedNoConnection = false;
+
 	// language
 	protected ArrayList<Integer> mEnabledLanguages;
 	protected Language mLanguage;
@@ -77,6 +82,33 @@ public abstract class TypingHandler extends KeyPadHandler {
 
 	public boolean shouldBeOff() {
 		return getCurrentInputConnection() == null || InputModeKind.isPassthrough(mInputMode);
+	}
+
+
+	/**
+	 * KT9 fork: fixes the "first keypress after idle types a raw digit" bug (e.g. "2awesome").
+	 *
+	 * When Android kills the keyboard service while the phone is idle, it is recreated with the mode
+	 * defaulting to PASSTHROUGH, and the first onStart can run before the input connection is ready -
+	 * so the mode is (correctly, at the time) resolved to PASSTHROUGH. If the user types before the
+	 * connection becomes live and the mode is re-resolved, that key leaks through to the app as a raw
+	 * digit. Here, on such a keypress, if the connection is now live, we re-run onStart to resolve the
+	 * real mode (e.g. predictive T9) before the key is handled, so nothing leaks. Genuine passthrough
+	 * fields (dialer, TYPE_NULL) never set the flag, so they are unaffected.
+	 */
+	@Override
+	protected boolean recoverModeIfConnectionWasNotReady() {
+		if (!modeUnresolvedNoConnection || getCurrentInputConnection() == null) {
+			return false;
+		}
+
+		EditorInfo field = getCurrentInputEditorInfo();
+		if (field == null) {
+			return false;
+		}
+
+		onStart(field, true);
+		return true;
 	}
 
 
@@ -459,7 +491,16 @@ public abstract class TypingHandler extends KeyPadHandler {
 	 * We do not want to handle any of these, hence we pass through all input to the system.
 	 */
 	protected int determineInputModeId() {
-		if (!inputType.isValid() || (inputType.isLimited() && !inputType.isTeamsInitial() && !inputType.isTermux())) {
+		// KT9 fork: distinguish "no live connection yet" (transient, recoverable on cold resume) from a
+		// genuinely limited/dialer field (permanent passthrough). Only the former is worth re-resolving
+		// on the first keypress.
+		if (!inputType.isValid()) {
+			modeUnresolvedNoConnection = true;
+			return InputMode.MODE_PASSTHROUGH;
+		}
+		modeUnresolvedNoConnection = false;
+
+		if (inputType.isLimited() && !inputType.isTeamsInitial() && !inputType.isTermux()) {
 			return InputMode.MODE_PASSTHROUGH;
 		}
 

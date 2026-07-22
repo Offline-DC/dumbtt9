@@ -53,7 +53,22 @@ abstract class KeyPadHandler extends UiHandler {
 		}
 
 		if (shouldBeOff()) {
-			return false;
+			// KT9 fork: on a cold resume the mode can still be PASSTHROUGH because the connection was
+			// not ready when the field started. If it is live now, re-resolve the mode so this first key
+			// is typed properly instead of leaking to the app as a raw digit (the "2awesome" bug).
+			boolean recovered = recoverModeIfConnectionWasNotReady();
+			// TEMP diagnostic for the "2awesome" cold-resume bug — remove once confirmed. If the bug
+			// recurs, "Export logs" and look for COLDSTART: recovered=true/stillOff=false means the fix
+			// caught it; stillOff=true with connectionLive=true means a different cause slipped past.
+			io.github.sspanak.tt9.util.Logger.e("COLDSTART",
+				"key while keyboard OFF: keyCode=" + keyCode
+				+ " isNumber=" + Key.isNumber(keyCode)
+				+ " connectionLive=" + (getCurrentInputConnection() != null)
+				+ " recovered=" + recovered
+				+ " stillOff=" + shouldBeOff());
+			if (shouldBeOff()) {
+				return false;
+			}
 		}
 
 //		Logger.d("onKeyDown", "Key: " + event + " repeat?: " + event.getRepeatCount() + " long-time: " + event.isLongPress());

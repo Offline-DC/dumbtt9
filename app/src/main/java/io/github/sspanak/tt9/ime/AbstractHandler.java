@@ -20,6 +20,11 @@ abstract public class AbstractHandler extends InputMethodService {
 	// lifecycle
 	abstract protected void onInit();
 	abstract protected boolean onStart(EditorInfo inputField, boolean restarting);
+
+	// KT9 fork: cold-resume recovery. If we are stuck in passthrough only because the input connection
+	// was not ready when the field started, and it is now live, re-resolve the mode. Returns true if a
+	// re-start was performed. See TypingHandler for details.
+	abstract protected boolean recoverModeIfConnectionWasNotReady();
 	abstract protected void onFinishTyping(boolean willExitInput);
 	abstract protected void onStop();
 	abstract protected void setInputField(EditorInfo inputField);
