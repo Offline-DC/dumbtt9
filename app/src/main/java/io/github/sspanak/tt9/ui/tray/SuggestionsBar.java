@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.LinearSmoothScroller;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
@@ -332,9 +333,12 @@ public class SuggestionsBar {
 		boolean isPunctuationSet = newSuggestions != null && !newSuggestions.isEmpty() && "\n".equals(newSuggestions.get(0));
 		updatePunctuationGrid(isPunctuationSet);
 
-		// KT9 fork: single-letter suggestions (a b c...) get fixed uniform cells so nothing shifts or
-		// scrunches while navigating; words keep variable-width cells.
-		mSuggestionsAdapter.setLetterMode(!onlySpecialChars && allSingleCharacters(visibleSuggestions), letterCellWidth());
+		// KT9 fork: single-character suggestions get fixed uniform cells so nothing shifts or scrunches
+		// while navigating; words keep variable-width cells. This also covers the single-character
+		// punctuation panels (e.g. the "@ _ . ! ? ..." set email fields show) so they stay still like
+		// the letter cells. The only single-character panel excluded is the 2-row punctuation grid,
+		// which manages its own layout.
+		mSuggestionsAdapter.setLetterMode(!isPunctuationSet && allSingleCharacters(visibleSuggestions), letterCellWidth());
 
 		selectedIndex = Math.max(Math.min(selectedIndex, visibleSuggestions.size() - 1), 0);
 
@@ -668,7 +672,21 @@ public class SuggestionsBar {
 
 		boolean smooth = settings.getSuggestionSmoothScroll() && Math.abs(selectedIndex - lastScrollIndex) < SettingsStore.SUGGESTIONS_MAX;
 		mView.setItemAnimator(smooth ? animator : null);
-		mView.scrollToPosition(containsStem() && selectedIndex == 1 ? 0 : selectedIndex);
+
+		// KT9 fork: soften the scroll. Instead of snapping the selected word to the left edge (a big
+		// shift of the whole row), scroll the minimum needed to bring it just into view at the nearest
+		// edge - so the row nudges by roughly one word instead of leaping.
+		final int scrollTarget = containsStem() && selectedIndex == 1 ? 0 : selectedIndex;
+		RecyclerView.LayoutManager lm = mView.getLayoutManager();
+		if (lm instanceof LinearLayoutManager) {
+			LinearSmoothScroller scroller = new LinearSmoothScroller(mView.getContext()) {
+				@Override protected int getHorizontalSnapPreference() { return SNAP_TO_ANY; }
+			};
+			scroller.setTargetPosition(scrollTarget);
+			lm.startSmoothScroll(scroller);
+		} else {
+			mView.scrollToPosition(scrollTarget);
+		}
 		lastScrollIndex = selectedIndex;
 	}
 
