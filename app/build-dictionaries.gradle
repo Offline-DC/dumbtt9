@@ -199,7 +199,9 @@ def writeDictionaryProperties(File definition, File csvDictionary, File zipDicti
 
 	try {
 		def hash = DictionaryTools.getLanguageHash(definition, csvDictionary)
-		def revision = zipDictionary.exists() ? exec("git log --pretty=tformat:%H -n 1 ${zipDictionary}") : ""
+		// KT9/Dumb Keys fork: pin the download revision to a fixed upstream tag instead of our local
+		// commit hash (which would 404 against upstream). See DICTIONARY_UPSTREAM_REVISION.
+		def revision = zipDictionary.exists() ? DICTIONARY_UPSTREAM_REVISION : ""
 		def size = zipDictionary.exists() ? zipDictionary.length() : 0
 
 		new File(outputDir, name).text = "hash: ${hash}\nrevision: ${revision}\nsize: ${size}\nwords: ${words}"

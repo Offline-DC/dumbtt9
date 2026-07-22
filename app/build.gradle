@@ -56,6 +56,27 @@ tasks.register('copyDownloadsToAssets', Copy) {
 }
 
 
+// KT9/Dumb Keys fork: bundle ONLY English into the lite flavor so it works offline out of the box,
+// while every other language is downloaded on demand. Sources both files from the downloads/ dir
+// (copyNgramsToDownloads puts the ngrams there), placing each into the matching lite asset subdir.
+tasks.register('copyEnglishToAssets') {
+	dependsOn buildDictionaryDownloads, copyNgramsToDownloads
+	mustRunAfter buildDictionaryDownloads, copyNgramsToDownloads
+	doLast {
+		copy {
+			from DICTIONARIES_DOWNLOAD_DIR
+			include 'en-utf8.zip'
+			into LITE_DICTIONARIES_OUTPUT_DIR
+		}
+		copy {
+			from DICTIONARIES_DOWNLOAD_DIR
+			include 'en-ngrams.zip'
+			into LITE_NGRAMS_OUTPUT_DIR
+		}
+	}
+}
+
+
 tasks.register('generateNgramsMeta') {
 	inputs.dir NGRAMS_INPUT_DIR
 	outputs.dir NGRAMS_META_OUTPUT_DIR
@@ -215,6 +236,15 @@ android {
 		}
 	}
 
+	// KT9/Dumb Keys fork: the lite and premium flavors reuse the full flavor's Java sources. Upstream
+	// wires this with a symlink (src/lite/java -> ../full/java), which Windows checks out as a broken
+	// 13-byte text file, so local lite/premium builds fail. Pointing the source dir explicitly makes
+	// them build on every OS and removes the symlink dependency (CI already worked; now local does too).
+	sourceSets {
+		lite.java.srcDirs = ['src/full/java']
+		premium.java.srcDirs = ['src/full/java']
+	}
+
 	androidComponents {
 		onVariants(selector().all()) { variant ->
 			def variantName = variant.name.capitalize()
@@ -235,6 +265,10 @@ android {
 
 					if (taskName.toLowerCase().contains("full")) {
 						dependsOn(copyDownloadsToAssets)
+					} else {
+						// KT9/Dumb Keys fork: lite (and premium) bundle English only; other languages
+						// are downloaded on demand.
+						dependsOn(copyEnglishToAssets)
 					}
 				}
 			}

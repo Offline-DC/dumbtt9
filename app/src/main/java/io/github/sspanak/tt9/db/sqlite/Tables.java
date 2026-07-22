@@ -59,6 +59,22 @@ public class Tables {
 	}
 
 
+	/**
+	 * KT9/Dumb Keys fork: create the word tables for a single language, if they don't already exist.
+	 * The tables are normally created only in getWordsCreateQueries() when the database is first built,
+	 * for whatever languages existed then. A language added later (e.g. when new definitions ship, or a
+	 * user downloads a language on an older database) has no tables, so loading its dictionary would hit
+	 * "no such table: words_<id>". Calling this first makes the load work regardless of DB age. All the
+	 * statements are CREATE TABLE IF NOT EXISTS, so this is a no-op when the tables are already there.
+	 */
+	public static void createLanguageTables(@NonNull SQLiteDatabase db, @NonNull Language language) {
+		final int langId = language.getId();
+		CompiledQueryCache.execute(db, createWordsTable(langId));
+		CompiledQueryCache.execute(db, createWordPositions(langId));
+		CompiledQueryCache.execute(db, createWordPairs(langId));
+	}
+
+
 	public static void createWordIndex(@NonNull SQLiteDatabase db, @NonNull Language language) {
 		CompiledQueryCache.execute(db, createWordsIndex(language.getId()));
 	}

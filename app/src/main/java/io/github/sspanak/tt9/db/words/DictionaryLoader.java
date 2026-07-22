@@ -188,6 +188,12 @@ public class DictionaryLoader {
 
 			sqlite.beginTransaction();
 
+			// KT9/Dumb Keys fork: ensure this language's tables exist before clearing/loading. On a
+			// database created before the language was known (e.g. an update from the English-only build,
+			// or any newly downloaded language), the tables were never created, so the DELETE below would
+			// fail with "no such table: words_<id>". This is idempotent (CREATE TABLE IF NOT EXISTS).
+			Tables.createLanguageTables(sqlite.getDb(), language);
+
 			Tables.dropWordsIndexes(sqlite.getDb(), language);
 			sendProgressMessage(language, ++progress);
 			logLoadingStep("Indexes dropped", language, Timer.restart());

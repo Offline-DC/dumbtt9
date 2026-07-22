@@ -38,6 +38,20 @@ ext.DICTIONARIES_OUTPUT_DIR = "${FULL_VERSION_ASSETS_DIR}/${LANGUAGES_DIR_NAME}/
 ext.NGRAMS_META_OUTPUT_DIR = "${LANGUAGES_OUTPUT_DIR}/${NGRAMS_DIR_NAME}"
 ext.NGRAMS_OUTPUT_DIR = "${FULL_VERSION_ASSETS_DIR}/${LANGUAGES_DIR_NAME}/${NGRAMS_DIR_NAME}"
 
+// KT9/Dumb Keys fork: the lite flavor bundles NO dictionaries (that's the point — small APK, download
+// languages on demand). To keep the keyboard usable offline out of the box we bundle ONLY English into
+// the lite source set: the word list (~1.2 MB) plus its tiny ngrams for next-word prediction (~43 KB).
+def LITE_VERSION_ASSETS_DIR = "${APP_ROOT_DIR}/src/lite/assets"
+ext.LITE_DICTIONARIES_OUTPUT_DIR = "${LITE_VERSION_ASSETS_DIR}/${LANGUAGES_DIR_NAME}/${DICTIONARIES_DIR_NAME}"
+ext.LITE_NGRAMS_OUTPUT_DIR = "${LITE_VERSION_ASSETS_DIR}/${LANGUAGES_DIR_NAME}/${NGRAMS_DIR_NAME}"
+
+// KT9/Dumb Keys fork: downloadable dictionaries are pulled from UPSTREAM (sspanak/tt9), pinned to a
+// fixed release tag rather than a per-file commit hash. The stock build stamps each dictionary with
+// OUR local commit hash, which never exists on upstream (404). Pinning to a stable upstream tag that
+// already contains all the dictionaries means downloads resolve with zero hosting on our side. Bump
+// this when adopting newer upstream dictionaries.
+ext.DICTIONARY_UPSTREAM_REVISION = "v63.0"
+
 ext.LANGUAGE_VALIDATION_DIR = layout.buildDirectory.dir("langValidation")
 
 ext.CSV_DELIMITER = '	' // TAB

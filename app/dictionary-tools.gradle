@@ -62,9 +62,24 @@ class Wrapper {
 	}
 
 
+	// KT9/Dumb Keys fork: compute SHA-256 in pure Java rather than shelling out to `sha256sum`. The
+	// old shell call broke when the project path contained a space (e.g. "dumb dom") - the unquoted
+	// path split into multiple args and produced an empty hash - and it also required sha256sum to be
+	// on PATH. The Java digest is identical byte-for-byte and works everywhere.
 	static def sha256(String filePath) {
-		def parts = "sha256sum $filePath".execute().text.trim().split(" ")
-		return parts.length > 0 ? parts[0] : ""
+		def file = new File(filePath)
+		if (!file.exists()) {
+			return ""
+		}
+		def digest = java.security.MessageDigest.getInstance("SHA-256")
+		file.withInputStream { stream ->
+			byte[] buffer = new byte[8192]
+			int read
+			while ((read = stream.read(buffer)) != -1) {
+				digest.update(buffer, 0, read)
+			}
+		}
+		return digest.digest().collect { String.format("%02x", it) }.join()
 	}
 }
 
