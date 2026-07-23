@@ -373,6 +373,16 @@ class ModeWords extends ModeCheonjiin {
 		ArrayList<String> ordered = new ArrayList<>(letters);
 		ordered.sort((a, b) -> Integer.compare(englishFrequencyRank(a), englishFrequencyRank(b)));
 
+		// KT9 fork: capitalize the standalone English "I". This method builds the single-key suggestion
+		// from the raw (lowercase) layout letters, bypassing the word database - where DictionaryLoader
+		// stores English "i" as "I". Without this, pressing 4 then space mid-sentence commits a lowercase
+		// "i" (AutoTextCase returns CASE_DICTIONARY = use-as-stored). Mid-word "i" (e.g. "hi", "gigi") is
+		// still lowercased by AutoTextCase's isEnglishI + next-to-word check, so only the pronoun caps.
+		// Reported and diagnosed by James.
+		if (LanguageKind.isEnglish(language)) {
+			ordered.replaceAll(c -> c.equals("i") ? "I" : c);
+		}
+
 		suggestions = ordered;
 		return true;
 	}
