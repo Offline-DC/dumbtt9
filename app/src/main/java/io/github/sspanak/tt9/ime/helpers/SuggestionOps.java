@@ -132,7 +132,11 @@ public class SuggestionOps {
 	// where we don't want the letter/number options in the bar — only predictive (TT9), the punctuation panel,
 	// and voice show the strip.
 	public void set(@Nullable ArrayList<String> suggestions, int selectIndex, boolean containsGenerated, boolean forceHidden) {
-		setVisibility(settings, suggestions == null || suggestions.isEmpty(), false, forceHidden);
+		// KT9 fork: when the mode logic is NOT force-hiding the strip (predictive, or the punctuation panel
+		// is open), force it visible. Otherwise the legacy "Show suggestions in ABC" setting
+		// (show_suggestions_abc=false) suppresses the whole strip in ABC — including the "*" punctuation
+		// panel — leaving only the en/En mode label. forceHidden already encodes the correct KT9 rule.
+		setVisibility(settings, suggestions == null || suggestions.isEmpty(), !forceHidden, forceHidden);
 		if (suggestionBar != null) {
 			suggestionBar.setMany(suggestions, selectIndex, containsGenerated);
 		}
