@@ -7,27 +7,26 @@ static def getCurrentGitHash() {
 }
 
 static def generateVersionName() {
-	// major version
-	String versionTagsRaw = execThing('git tag --list v[0-9]*')
-	int versionTagsCount = versionTagsRaw == "" ? 0 : versionTagsRaw.split('\n').size()
-
-	// minor version
-	String commitsSinceLastTag = "0"
-	if (versionTagsCount > 1) {
-		String lastVersionTag = execThing('git describe --match v[0-9]* --tags --abbrev=0')
-		String gitLogResult = execThing("git log $lastVersionTag..HEAD --oneline")
-		commitsSinceLastTag = gitLogResult == '' ? "0" : gitLogResult.split('\n').size()
+	// Dumb Keys: derive the displayed version from the latest release TAG name
+	// (e.g. "v1.0" -> "1.0", "v1.0-beta1" -> "1.0-beta1"), instead of the old
+	// count-of-tags scheme (which showed ~v74 from the upstream lineage). This
+	// starts the Dumb Keys stable line cleanly at 1.0. versionCode is still the
+	// commit count (see getVersionCode below), so update comparisons are unaffected.
+	String lastVersionTag = execThing('git describe --match v[0-9]* --tags --abbrev=0')
+	if (lastVersionTag == "") {
+		return "0.0"
 	}
 
+	// strip the leading "v": "v1.0" -> "1.0", "v1.0-beta1" -> "1.0-beta1"
+	String base = lastVersionTag.replaceFirst(/^v/, '')
 
-	// the commit we are building from
+	// commits since that tag (0 when building exactly on the tag)
+	String gitLogResult = execThing("git log $lastVersionTag..HEAD --oneline")
+	int commitsSinceLastTag = gitLogResult == '' ? 0 : gitLogResult.split('\n').size()
 
-	// beta string, if this is a beta
-	String lastTagName = (execThing('git tag --list') == "") ? "" : execThing('git describe --tags --abbrev=0')
-	String lastTagHash = (lastTagName == "") ? "" : execThing("git log -1 --format=%h $lastTagName")
-	String betaString = lastTagHash == getCurrentGitHash() && lastTagName.contains("-beta") ? '-beta' : ''
-
-	return "$versionTagsCount.$commitsSinceLastTag$betaString"
+	// on the tag -> just the tag name; a few commits past it -> append the count
+	// so in-between dev builds stay distinguishable
+	return commitsSinceLastTag == 0 ? base : "$base+$commitsSinceLastTag"
 }
 
 ext.exec = { command ->
