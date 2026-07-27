@@ -56,6 +56,12 @@ public abstract class TypingHandler extends KeyPadHandler {
 	// recover the real mode on the first keypress so it isn't leaked to the app as a raw digit.
 	private boolean modeUnresolvedNoConnection = false;
 
+	// KT9 fork: true immediately after the 0 key typed a plain space in a text mode. A second
+	// consecutive 0 then produces the "Character for Double 0-Key Press" (getDoubleZeroChar) instead
+	// of another space. Cleared by any other key (see onNumber/onText/onBackspace), so only a true
+	// double-tap of 0 triggers it.
+	private boolean pendingZeroSpace = false;
+
 	// language
 	protected ArrayList<Integer> mEnabledLanguages;
 	protected Language mLanguage;
@@ -207,6 +213,9 @@ public abstract class TypingHandler extends KeyPadHandler {
 			return false;
 		}
 
+		// KT9 fork: a backspace ends any pending double-0 (the space it would have replaced is gone).
+		pendingZeroSpace = false;
+
 		mindReader.clearContext();
 
 		if (appHacks.onBackspace(settings, mInputMode)) {
@@ -254,10 +263,27 @@ public abstract class TypingHandler extends KeyPadHandler {
 
 		hold = hold && settings.getHoldToType();
 
+		// KT9 fork: remember whether the previous key was a 0-space, then clear the flag. Any key that
+		// isn't the second half of a double-0 lands here and resets it; the 0-space path below re-sets it.
+		boolean wasZeroSpace = pendingZeroSpace;
+		pendingZeroSpace = false;
+
 		// KT9 fork: the 0 key is a plain Space in text modes (accepting the current word first), instead
 		// of TT9's 0-key special-character panel. In 123/numeric mode it keeps typing "0".
+		//
+		// A SECOND consecutive 0 restores the "Character for Double 0-Key Press" setting: delete the
+		// space the first 0 just typed and emit getDoubleZeroChar() instead (default "."). When that
+		// setting is "Space" it is stored as "", so we fall through and type a plain space as before —
+		// i.e. double-0 stays two spaces for anyone who prefers that.
 		if (key == 0 && !hold && !InputModeKind.isNumeric(mInputMode)) {
+			String doubleZeroChar = settings.getDoubleZeroChar();
+			if (wasZeroSpace && !doubleZeroChar.isEmpty()) {
+				textField.deleteChars(mLanguage, 1);
+				onText(doubleZeroChar, false);
+				return true;
+			}
 			onText(Characters.getSpace(mLanguage), false);
+			pendingZeroSpace = true;
 			return true;
 		}
 
@@ -301,6 +327,12 @@ public abstract class TypingHandler extends KeyPadHandler {
 
 
 	public boolean onText(String text, boolean validateOnly) {
+		// KT9 fork: any real text output (punctuation, "*", the 0-space itself) ends a pending
+		// double-0. The 0-space path re-sets the flag AFTER calling onText, so this doesn't undo it.
+		if (!validateOnly) {
+			pendingZeroSpace = false;
+		}
+
 		// KT9 fork: tapping "*" opens the punctuation list (like KT9) instead of typing a "*".
 		// It reuses the key-1 special-character flow (row 1 = CHARS_1, row 2 = CHARS_GROUP_1).
 		if ("*".equals(text)) {
