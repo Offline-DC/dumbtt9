@@ -43,7 +43,15 @@ public class SettingsUI extends SettingsTyping {
 
 		DEFAULT_LARGE_LAYOUT = LAYOUT_NUMPAD;
 
-		if (DeviceInfo.noKeyboard(context)) {
+		if (DeviceInfo.noKeyboard(context) && !DeviceInfo.noTouchScreen(context)) {
+			// The full on-screen numpad is only usable on a device that has a
+			// touchscreen but no hardware keys. On a NO-touchscreen device (e.g.
+			// the TCL Flip 2, which reports KEYBOARD_NOKEYS so noKeyboard() is
+			// true) the numpad can't be tapped at all — and when an app force-
+			// shows the IME view (OpenBubbles / Smart Txt calls showSoftInput()
+			// repeatedly), it just renders a full-screen keypad over the message
+			// field while the user types on the physical keys. Fall through to
+			// the minimal tray for those devices instead.
 			DEFAULT_LAYOUT = DEFAULT_LARGE_LAYOUT;
 		} else if (DeviceInfo.noBackspaceKey() && !DeviceInfo.noTouchScreen(context)) {
 			DEFAULT_LAYOUT = LAYOUT_SMALL;
