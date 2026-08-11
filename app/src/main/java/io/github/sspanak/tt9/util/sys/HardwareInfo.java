@@ -18,6 +18,7 @@ public class HardwareInfo {
 	public static final boolean IS_SAMSUNG = Build.MANUFACTURER.equals("samsung") || Build.MANUFACTURER.equals("Samsung") || Build.MANUFACTURER.equals("SAMSUNG");
 	public static final boolean IS_SONIM = Build.MANUFACTURER.equals("Sonimtech");
 	public static final boolean IS_XIAOMI = Build.MANUFACTURER.equals("Xiaomi");
+	public static final boolean IS_TCL_FLIP = Build.MANUFACTURER.equalsIgnoreCase("TCL") && (Build.DEVICE.toLowerCase().contains("flip") || Build.MODEL.toUpperCase().startsWith("4058"));
 
 	private static Boolean NO_TOUCH_SCREEN = null;
 
@@ -80,7 +81,10 @@ public class HardwareInfo {
 
 	public static boolean noTouchScreen(Context context) {
 		if (NO_TOUCH_SCREEN == null) {
-			NO_TOUCH_SCREEN = !context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN);
+			// Offline-DC only ships on TCL keypad flips, several of which falsely declare
+			// android.hardware.touchscreen. Treat every TCL flip as no-touch so the on-screen
+			// numpad and other touch-only behaviour stay off.
+			NO_TOUCH_SCREEN = IS_TCL_FLIP || !context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN);
 		}
 		return NO_TOUCH_SCREEN;
 	}

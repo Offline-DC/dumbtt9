@@ -180,6 +180,12 @@ public class SettingsUI extends SettingsTyping {
 	}
 
 	public int getMainViewLayout() {
+		// Offline-DC ships only on TCL keypad flips (no usable touchscreen). Lock those to the
+		// Function keys bar as the ONLY layout -- the on-screen grids are untappable, and pinning
+		// one layout avoids any mode-switch / resize edge cases on the hardware keys.
+		if (DeviceInfo.noTouchScreen(context)) {
+			return LAYOUT_SMALL;
+		}
 		return getStringifiedInt(DropDownLayoutType.NAME, DEFAULT_LAYOUT);
 	}
 
