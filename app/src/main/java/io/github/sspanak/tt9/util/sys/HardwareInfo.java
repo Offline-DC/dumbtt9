@@ -20,6 +20,22 @@ public class HardwareInfo {
 	public static final boolean IS_XIAOMI = Build.MANUFACTURER.equals("Xiaomi");
 	public static final boolean IS_TCL_FLIP = Build.MANUFACTURER.equalsIgnoreCase("TCL") && (Build.DEVICE.toLowerCase().contains("flip") || Build.MODEL.toUpperCase().startsWith("4058"));
 
+	/**
+	 * KT9 fork: the HIT QWERTY slider family (MT6739, Android 8.1).
+	 *
+	 * Reported identically across all three properties on the units we have -- brand, model and
+	 * device are all literally "HIT". Matched loosely (prefix, any of the three) so a later model
+	 * in the same line is picked up without another release; tighten it if a clash ever shows up.
+	 *
+	 * Everything HIT-specific in this app keys off this flag, so none of it can run on a TCL flip:
+	 * the slide-out passthrough (SliderKeyboard), the Fn/Shift symbol layers (FnKeyLayer), and the
+	 * no-touchscreen lock below.
+	 */
+	public static final boolean IS_HIT =
+		Build.MODEL.toUpperCase().startsWith("HIT")
+		|| Build.DEVICE.toUpperCase().startsWith("HIT")
+		|| Build.MANUFACTURER.toUpperCase().startsWith("HIT");
+
 	private static Boolean NO_TOUCH_SCREEN = null;
 
 	private static Resources resources;
@@ -81,10 +97,18 @@ public class HardwareInfo {
 
 	public static boolean noTouchScreen(Context context) {
 		if (NO_TOUCH_SCREEN == null) {
-			// Offline-DC only ships on TCL keypad flips, several of which falsely declare
-			// android.hardware.touchscreen. Treat every TCL flip as no-touch so the on-screen
-			// numpad and other touch-only behaviour stay off.
-			NO_TOUCH_SCREEN = IS_TCL_FLIP || !context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN);
+			// Offline-DC ships on keypad hardware that LIES about this. Several TCL flips falsely
+			// declare android.hardware.touchscreen, and so does the HIT -- `pm list features` there
+			// lists touchscreen, multitouch and even "jazzhand", while the platform's own
+			// Configuration reports "-touch" (TOUCHSCREEN_NOTOUCH). The Configuration is the honest
+			// one, so trust it first and keep the per-device overrides as a backstop for anything
+			// that lies in both places.
+			int touchscreen = getResources(context).getConfiguration().touchscreen;
+			NO_TOUCH_SCREEN =
+				touchscreen == Configuration.TOUCHSCREEN_NOTOUCH
+				|| IS_TCL_FLIP
+				|| IS_HIT
+				|| !context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN);
 		}
 		return NO_TOUCH_SCREEN;
 	}
