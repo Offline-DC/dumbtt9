@@ -80,6 +80,11 @@ public class SuggestionsBar {
 			Context context = mainView.getView().getContext();
 
 			mView.setLayoutManager(new LinearLayoutManager(context, RecyclerView.HORIZONTAL, false));
+			// The style declares android:scrollbars="vertical" so the platform builds the
+			// ScrollBarDrawable at inflation (see the comment in styles.xml -- turning it on later
+			// without that is a null-drawable crash on API 27). We only ever WANT it visible in the
+			// punctuation grid, so start with it off; updatePunctuationGrid() toggles it from here.
+			mView.setVerticalScrollBarEnabled(false);
 
 			initDataAdapter(context);
 			initSeparator(context);
