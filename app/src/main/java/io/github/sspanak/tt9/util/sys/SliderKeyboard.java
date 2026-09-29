@@ -40,6 +40,12 @@ public class SliderKeyboard {
 	private boolean supported = false;
 	private int lastOrientation = Configuration.ORIENTATION_UNDEFINED;
 
+	/** True on HIT hardware. Injectable so tests exercise both paths without faking Build. */
+	private final boolean hitHardware;
+
+	public SliderKeyboard() { this(HardwareInfo.IS_HIT); }
+	public SliderKeyboard(boolean hitHardware) { this.hitHardware = hitHardware; }
+
 	/** True while the slide-out QWERTY is exposed and TT9 should keep its hands off. */
 	public boolean isOpen() {
 		return open;
@@ -56,31 +62,34 @@ public class SliderKeyboard {
 		if (config == null) {
 			return false;
 		}
+		return refresh(config.keyboard, config.orientation);
+	}
 
+	/**
+	 * Testable core -- primitives only, so unit tests need no Configuration instance.
+	 * Package-visible on purpose (tests live in the same package).
+	 */
+	boolean refresh(int keyboardType, int orientation) {
 		// Gated on the HIT family, not just "reports a QWERTY": a Bluetooth keyboard paired to any
 		// other handset would otherwise put the whole app into passthrough.
-		supported = HardwareInfo.IS_HIT && config.keyboard == Configuration.KEYBOARD_QWERTY;
+		supported = hitHardware && keyboardType == Configuration.KEYBOARD_QWERTY;
 		if (!supported) {
 			lastOrientation = Configuration.ORIENTATION_UNDEFINED;
 			return setOpen(false);
 		}
 
-		// ORIENTATION_UNDEFINED means "don't know", not "closed" -- acting on it would drop us back
-		// into T9 mid-word.
-		if (config.orientation == Configuration.ORIENTATION_UNDEFINED) {
+		// ORIENTATION_UNDEFINED means "don't know", not "closed".
+		if (orientation == Configuration.ORIENTATION_UNDEFINED) {
 			return false;
 		}
 
-		// Only an actual CHANGE of orientation is a slide. Re-reading the same orientation must not
-		// touch the state, because onStart() calls this on every field start: otherwise the very next
-		// field would overwrite a state that onKeyDown() had latched, and the key fallback below could
-		// never work on a handset that exposes a QWERTY without rotating the screen for it.
-		if (config.orientation == lastOrientation) {
+		// Only an actual CHANGE of orientation is a slide (onStart() calls this on every field start).
+		if (orientation == lastOrientation) {
 			return false;
 		}
-		lastOrientation = config.orientation;
+		lastOrientation = orientation;
 
-		return setOpen(config.orientation == Configuration.ORIENTATION_LANDSCAPE);
+		return setOpen(orientation == Configuration.ORIENTATION_LANDSCAPE);
 	}
 
 	/**

@@ -57,6 +57,12 @@ public class FnKeyLayer {
 	/** "HIT Shift Key" per the ROM's own logging. mtk-kpd scancode 259. */
 	private static final int KEYCODE_SHIFT = KeyEvent.KEYCODE_BUTTON_4; // 191
 
+	/** True on HIT hardware. Injectable so tests exercise both paths without faking Build. */
+	private final boolean enabled;
+
+	public FnKeyLayer() { this(HardwareInfo.IS_HIT); }
+	public FnKeyLayer(boolean enabled) { this.enabled = enabled; }
+
 	private boolean fnOnce = false;
 	private boolean fnLocked = false;
 	private boolean shiftOnce = false;
@@ -116,7 +122,7 @@ public class FnKeyLayer {
 	 * swallowing them on some other handset would be a bug, not a feature.
 	 */
 	public boolean isModifier(int keyCode) {
-		return HardwareInfo.IS_HIT && (keyCode == KEYCODE_FN || keyCode == KEYCODE_SHIFT);
+		return enabled && (keyCode == KEYCODE_FN || keyCode == KEYCODE_SHIFT);
 	}
 
 	/**
@@ -152,7 +158,7 @@ public class FnKeyLayer {
 	 */
 	@Nullable
 	public String textFor(int keyCode, KeyEvent event) {
-		if (!HardwareInfo.IS_HIT) {
+		if (!enabled) {
 			return null;
 		}
 
