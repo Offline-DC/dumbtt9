@@ -1,6 +1,7 @@
 package io.github.sspanak.tt9.ime.voice;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -45,10 +46,24 @@ public class VoiceInputPickerActivity extends AppCompatActivity {
 	}
 
 
+	/**
+	 * Hands off to whatever app answers RECOGNIZE_SPEECH. TCL flips ship with no such app,
+	 * yet VoiceHandler can still route here via forceAlternativeInput(true), so the launch
+	 * must tolerate "nobody answers" instead of taking the whole keyboard down.
+	 * Seen in the field: diag bundle 016157003065752/20261009-114852Z (TCL 4058W) has five
+	 * crashes on 10-02/10-03 —
+	 *   ActivityNotFoundException: No Activity found to handle Intent { act=android.speech.action.RECOGNIZE_SPEECH }
+	 *   at VoiceInputPickerActivity.onCreate(:31)
+	 */
 	private void launchPicker() {
 		final Language language = LanguageCollection.getLanguage(new SettingsStore(this).getInputLanguage());
 		final String locale = language != null ? VoiceInputOps.getLocale(language) : null;
-		launcher.launch(VoiceInputOps.createIntent(locale));
+		try {
+			launcher.launch(VoiceInputOps.createIntent(locale));
+		} catch (ActivityNotFoundException e) {
+			Logger.e(LOG_TAG, "No app handles RECOGNIZE_SPEECH on this device; closing the voice picker. " + e.getMessage());
+			finish();
+		}
 	}
 
 
