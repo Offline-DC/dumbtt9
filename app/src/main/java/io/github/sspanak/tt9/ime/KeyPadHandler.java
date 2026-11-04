@@ -25,6 +25,10 @@ abstract class KeyPadHandler extends UiHandler {
 	// onBackPressed() and the screen closes under the user as they delete.
 	private boolean backConsumedAsBackspace = false;
 
+	// KT9 fork: true while we are swallowing an OK / Enter that sent a WhatsApp message with the
+	// slide out (see sendChatMessageWithSliderOpen), so its repeats and ACTION_UP are swallowed too.
+	private boolean okConsumedAsChatSend = false;
+
 	// debounce handling
 	private final static String DEBOUNCE_TIMER = "debounce_";
 
@@ -92,6 +96,19 @@ abstract class KeyPadHandler extends UiHandler {
 		// key that gets eaten on the way into passthrough.
 		if (sliderKeyboard.onKeyDown(keyCode)) {
 			onSliderKeyboardChanged();
+		}
+
+		// KT9 fork: with the slide out we are in passthrough, so the keyboard's Enter and the D-pad
+		// centre reach WhatsApp raw, and WhatsApp does not send on those. In a WhatsApp chat only, send
+		// the message instead, exactly as OK does with the phone closed. HIT only: isOpen() is
+		// permanently false on every other phone (see SliderKeyboard).
+		if (sliderKeyboard.isOpen() && Key.isOK(keyCode)) {
+			if (event.getRepeatCount() == 0) {
+				okConsumedAsChatSend = sendChatMessageWithSliderOpen();
+			}
+			if (okConsumedAsChatSend) {
+				return true;
+			}
 		}
 
 		if (settings.getInputHandlingMode() == DropDownInputHandlingMode.RETURN_FALSE) {
@@ -216,6 +233,12 @@ abstract class KeyPadHandler extends UiHandler {
 			return true;
 		}
 
+		// KT9 fork: swallow the release of an OK that sent a WhatsApp message (see onKeyDown).
+		if (okConsumedAsChatSend && Key.isOK(keyCode)) {
+			okConsumedAsChatSend = false;
+			return true;
+		}
+
 		// KT9 fork: swallow the release of a BACK we turned into a backspace (see onKeyDown).
 		if (keyCode == KeyEvent.KEYCODE_BACK && backConsumedAsBackspace) {
 			backConsumedAsBackspace = false;
@@ -324,6 +347,12 @@ abstract class KeyPadHandler extends UiHandler {
 			connection.commitText(symbol, 1);
 		}
 		return true;
+	}
+
+
+	/** KT9 fork: overridden in TypingHandler, which knows the field. */
+	protected boolean sendChatMessageWithSliderOpen() {
+		return false;
 	}
 
 

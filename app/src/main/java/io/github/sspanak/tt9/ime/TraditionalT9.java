@@ -36,6 +36,10 @@ public class TraditionalT9 extends PremiumHandler {
 	@NonNull private final Handler backgroundTasks = new Handler(Looper.getMainLooper());
 	@NonNull private final Handler zombieDetector = new Handler(Looper.getMainLooper());
 	@NonNull private final Handler heartbeatDetector = new Handler(Looper.getMainLooper());
+	@NonNull private final Handler connectionRetry = new Handler(Looper.getMainLooper());
+	private int connectionRetries = 0;
+	private static final int CONNECTION_RETRY_MAX = 10;
+	private static final int CONNECTION_RETRY_DELAY_MS = 100;
 	private boolean isDead = false;
 	private int zombieChecks = 0;
 
@@ -98,6 +102,8 @@ public class TraditionalT9 extends PremiumHandler {
 	@Override
 	public void onFinishInput() {
 		super.onFinishInput();
+		connectionRetry.removeCallbacksAndMessages(null);
+		connectionRetries = 0;
 		onStop();
 	}
 
@@ -169,7 +175,10 @@ public class TraditionalT9 extends PremiumHandler {
 
 		if (InputModeKind.isPassthrough(mInputMode)) {
 			onStop();
+			scheduleConnectionRetry();
 		}	else {
+			connectionRetry.removeCallbacksAndMessages(null);
+			connectionRetries = 0;
 			backgroundTasks.removeCallbacksAndMessages(null);
 			initUi(mInputMode);
 		}
@@ -177,6 +186,28 @@ public class TraditionalT9 extends PremiumHandler {
 		onAfterStart(field);
 
 		return true;
+	}
+
+
+	/**
+	 * KT9 fork: when a field started before its input connection was live, the mode falls back to
+	 * PASSTHROUGH (no bar, raw digits) and used to stay that way until the first keypress. Re-check a
+	 * few times right away instead, so the bar appears on its own. Bounded (1 s), and a no-op for
+	 * genuine passthrough fields (dialer, TYPE_NULL, the HIT slider out), which never set the flag.
+	 */
+	private void scheduleConnectionRetry() {
+		connectionRetry.removeCallbacksAndMessages(null);
+		if (!isWaitingForConnection() || connectionRetries >= CONNECTION_RETRY_MAX) {
+			connectionRetries = 0;
+			return;
+		}
+
+		connectionRetries++;
+		connectionRetry.postDelayed(() -> {
+			if (isWaitingForConnection() && (!recoverModeIfConnectionWasNotReady() || isWaitingForConnection())) {
+				scheduleConnectionRetry();
+			}
+		}, CONNECTION_RETRY_DELAY_MS);
 	}
 
 

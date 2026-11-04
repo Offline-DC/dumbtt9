@@ -1,5 +1,7 @@
 package io.github.sspanak.tt9.ime;
 
+import android.os.Handler;
+import android.os.Looper;
 import android.view.inputmethod.InputMethodManager;
 
 import androidx.annotation.NonNull;
@@ -27,6 +29,9 @@ abstract class UiHandler extends AbstractHandler {
 	protected boolean isMainViewShown = false;
 	protected MainView mainView = null;
 	protected StatusBar statusBar = null;
+
+	// KT9 fork: see initUi() -- shows the keyboard once the app has finished starting the field.
+	@NonNull private final Handler showOnStartHandler = new Handler(Looper.getMainLooper());
 
 
 	@Override
@@ -87,6 +92,20 @@ abstract class UiHandler extends AbstractHandler {
 			brutalForceShowWindow();
 		} else if (!isInputViewShown()) {
 			updateInputViewShown();
+
+			// KT9 fork: show the keyboard as soon as a text box gets the cursor, every time, on every
+			// phone. Stock TT9 waits for the app to ask for a keyboard, and some apps never do -- in a
+			// WhatsApp chat (Android 8.1, no touchscreen) nothing asks, so the bar stayed hidden until
+			// the first keypress, which is the moment TT9 itself calls forceShowWindow(). This does that
+			// same call up front. forceShowWindow() does nothing where we should not be visible (dialer,
+			// calculator, TYPE_NULL fields, the HIT slider out = passthrough) or when already shown.
+			// Posted, so it runs after the app's onStartInput round-trip has finished, not inside it.
+			showOnStartHandler.removeCallbacksAndMessages(null);
+			showOnStartHandler.post(() -> {
+				if (!isInputViewShown()) {
+					forceShowWindow();
+				}
+			});
 		}
 	}
 
