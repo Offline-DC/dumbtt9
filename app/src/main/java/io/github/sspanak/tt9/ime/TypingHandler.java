@@ -102,6 +102,25 @@ public abstract class TypingHandler extends KeyPadHandler {
 	 * real mode (e.g. predictive T9) before the key is handled, so nothing leaks. Genuine passthrough
 	 * fields (dialer, TYPE_NULL) never set the flag, so they are unaffected.
 	 */
+	/** KT9 fork: true while the mode is PASSTHROUGH only because the connection was not live yet. */
+	protected boolean isWaitingForConnection() {
+		return modeUnresolvedNoConnection;
+	}
+
+
+	/**
+	 * KT9 fork: the slide-out QWERTY is out (HIT only -- sliderKeyboard is never open anywhere else)
+	 * and OK / Enter was pressed. In a WhatsApp chat, send the message the same way the OK key does
+	 * with the phone closed (AppHacks.onEnter: an ENTER key event through the input connection, which
+	 * WhatsApp treats as "send"). The raw hardware Enter / D-pad centre that passthrough would hand
+	 * over does not send. Everywhere else: false, and the key goes to the app untouched.
+	 */
+	@Override
+	protected boolean sendChatMessageWithSliderOpen() {
+		return inputType.isWhatsApp() && textField.sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER);
+	}
+
+
 	@Override
 	protected boolean recoverModeIfConnectionWasNotReady() {
 		if (!modeUnresolvedNoConnection || getCurrentInputConnection() == null) {
@@ -133,6 +152,10 @@ public abstract class TypingHandler extends KeyPadHandler {
 
 	@Override
 	protected boolean onStart(EditorInfo field, boolean restarting) {
+		// KT9 fork: seed the slide state. onConfigurationChanged only fires on a CHANGE, so without
+		// this a service that started with the slide already out would never notice.
+		sliderKeyboard.refresh(getResources().getConfiguration());
+
 		boolean restart = restarting || textField.equals(getCurrentInputConnection(), field);
 
 		setInputField(field);
@@ -531,6 +554,16 @@ public abstract class TypingHandler extends KeyPadHandler {
 			return InputMode.MODE_PASSTHROUGH;
 		}
 		modeUnresolvedNoConnection = false;
+
+		// KT9 fork: the slide-out QWERTY is out -- hands off. The user has real letters, a real
+		// number row, a real Enter and a real Backspace, and the platform's key character map
+		// already types all of them. Passthrough makes shouldBeOff() true (so onKeyDown/onKeyUp
+		// bail on their first line and nothing is intercepted) and shouldBeVisible() false (so the
+		// keyboard window hides itself). Closing the slide re-resolves this and T9 returns, with
+		// the dictionary, settings and learned words untouched. See SliderKeyboard.
+		if (sliderKeyboard.isOpen()) {
+			return InputMode.MODE_PASSTHROUGH;
+		}
 
 		if (inputType.isLimited() && !inputType.isTeamsInitial() && !inputType.isTermux()) {
 			return InputMode.MODE_PASSTHROUGH;

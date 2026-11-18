@@ -1,14 +1,34 @@
 package io.github.sspanak.tt9.ime;
 
 import android.view.KeyEvent;
+import android.view.inputmethod.EditorInfo;
 
+import io.github.sspanak.tt9.ime.helpers.FnKeyLayer;
 import io.github.sspanak.tt9.ime.helpers.Key;
 import io.github.sspanak.tt9.preferences.screens.debug.DropDownInputHandlingMode;
 import io.github.sspanak.tt9.preferences.settings.SettingsStore;
 import io.github.sspanak.tt9.util.Timer;
+import io.github.sspanak.tt9.util.sys.SliderKeyboard;
 
 
 abstract class KeyPadHandler extends UiHandler {
+	// KT9 fork: whether the slide-out hardware QWERTY is out. While it is, we hand every key
+	// straight to the app -- see SliderKeyboard and determineInputModeId().
+	protected final SliderKeyboard sliderKeyboard = new SliderKeyboard();
+
+	// KT9 fork: the slide-out keyboard's Fn symbol layer. Nothing on the handset implements it,
+	// so we do -- including while the slide is out and we are otherwise in passthrough.
+	protected final FnKeyLayer fnKeyLayer = new FnKeyLayer();
+
+	// KT9 fork: true while we are swallowing a BACK press we turned into a backspace, so its
+	// ACTION_UP is swallowed too. Without that, Activity.onKeyUp turns the lone release into
+	// onBackPressed() and the screen closes under the user as they delete.
+	private boolean backConsumedAsBackspace = false;
+
+	// KT9 fork: true while we are swallowing an OK / Enter that sent a WhatsApp message with the
+	// slide out (see sendChatMessageWithSliderOpen), so its repeats and ACTION_UP are swallowed too.
+	private boolean okConsumedAsChatSend = false;
+
 	// debounce handling
 	private final static String DEBOUNCE_TIMER = "debounce_";
 
@@ -44,6 +64,51 @@ abstract class KeyPadHandler extends UiHandler {
 	public boolean onKeyDown(int keyCode, KeyEvent event) {
 		if (debounceKey(keyCode, event)) {
 			return true;
+		}
+
+		// KT9 fork: the slide-out keyboard's Fn and Shift layers, ahead of everything else --
+		// including the passthrough check below, since the whole point is that they keep working
+		// while the slide is out and TT9 is otherwise standing aside.
+		if (fnKeyLayer.isModifier(keyCode)) {
+			fnKeyLayer.onModifierDown(keyCode);
+			return true; // swallow it: to the app it is a stray gamepad button
+		}
+		String fnText = fnKeyLayer.textFor(keyCode, event);
+		if (fnText != null) {
+			return commitFnSymbol(fnText);
+		}
+
+		// KT9 fork: with the slide out, BACK is the keyboard's backspace -- the slide-out keyboard has
+		// no separate delete key, and mtk-kpd.kl maps its top-right key to KEYCODE_BACK. Matches what
+		// the HIT's own factory keyboard does.
+		//
+		// Note the condition: only when there is actually something before the cursor to delete. On an
+		// empty field the press falls through and does its normal job, so the user can still leave the
+		// screen and is never trapped. Auto-repeat gives hold-to-delete for free, one character per
+		// repeat. Lifted from the factory build's own implementation.
+		if (sliderKeyboard.isOpen() && keyCode == KeyEvent.KEYCODE_BACK && deleteCharBeforeCursor()) {
+			backConsumedAsBackspace = true;
+			return true;
+		}
+
+		// KT9 fork: a letter can only have come from the slide-out keyboard. Re-resolve the mode
+		// BEFORE shouldBeOff() below, so this very keypress passes through instead of being the one
+		// key that gets eaten on the way into passthrough.
+		if (sliderKeyboard.onKeyDown(keyCode)) {
+			onSliderKeyboardChanged();
+		}
+
+		// KT9 fork: with the slide out we are in passthrough, so the keyboard's Enter and the D-pad
+		// centre reach WhatsApp raw, and WhatsApp does not send on those. In a WhatsApp chat only, send
+		// the message instead, exactly as OK does with the phone closed. HIT only: isOpen() is
+		// permanently false on every other phone (see SliderKeyboard).
+		if (sliderKeyboard.isOpen() && Key.isOK(keyCode)) {
+			if (event.getRepeatCount() == 0) {
+				okConsumedAsChatSend = sendChatMessageWithSliderOpen();
+			}
+			if (okConsumedAsChatSend) {
+				return true;
+			}
 		}
 
 		if (settings.getInputHandlingMode() == DropDownInputHandlingMode.RETURN_FALSE) {
@@ -159,6 +224,27 @@ abstract class KeyPadHandler extends UiHandler {
 			return true;
 		}
 
+		// KT9 fork: mirror of the Fn/Shift handling in onKeyDown. The modifiers are sticky, so the
+		// release does nothing but get swallowed -- state is toggled on the way DOWN.
+		if (fnKeyLayer.isModifier(keyCode)) {
+			return true;
+		}
+		if (fnKeyLayer.consumesUp(keyCode)) {
+			return true;
+		}
+
+		// KT9 fork: swallow the release of an OK that sent a WhatsApp message (see onKeyDown).
+		if (okConsumedAsChatSend && Key.isOK(keyCode)) {
+			okConsumedAsChatSend = false;
+			return true;
+		}
+
+		// KT9 fork: swallow the release of a BACK we turned into a backspace (see onKeyDown).
+		if (keyCode == KeyEvent.KEYCODE_BACK && backConsumedAsBackspace) {
+			backConsumedAsBackspace = false;
+			return true;
+		}
+
 		if (settings.getInputHandlingMode() == DropDownInputHandlingMode.RETURN_FALSE) {
 			return false;
 		} else if (settings.getInputHandlingMode() == DropDownInputHandlingMode.CALL_SUPER) {
@@ -220,6 +306,66 @@ abstract class KeyPadHandler extends UiHandler {
 			return "#";
 		}
 		return String.valueOf((char) event.getUnicodeChar());
+	}
+
+
+	/**
+	 * KT9 fork: type one Fn-layer symbol straight into the field.
+	 *
+	 * Goes through the InputConnection rather than TT9's own onText(), because this has to work
+	 * while the slide is out -- and there we are in MODE_PASSTHROUGH, where the typing pipeline is
+	 * deliberately shut down. Returns true either way: if there is no connection the key is still
+	 * swallowed rather than leaking to the app as a bare digit, which is what the user would see
+	 * as "Fn did nothing and then typed 1 anyway".
+	 */
+	/**
+	 * KT9 fork: delete one character before the cursor, for the slide-out keyboard's BACK-as-
+	 * backspace. Returns false when there is nothing to delete, which is what lets the press fall
+	 * through to ordinary back navigation instead of trapping the user on the screen.
+	 *
+	 * Straight through the InputConnection rather than TT9's own onBackspace(), because this has to
+	 * work while the slide is out -- and there we are in MODE_PASSTHROUGH, where the typing
+	 * pipeline, the composing text and the suggestion engine are all deliberately shut down.
+	 */
+	private boolean deleteCharBeforeCursor() {
+		android.view.inputmethod.InputConnection connection = getCurrentInputConnection();
+		if (connection == null) {
+			return false;
+		}
+		CharSequence before = connection.getTextBeforeCursor(1, 0);
+		if (before == null || before.length() == 0) {
+			return false;
+		}
+		connection.deleteSurroundingText(1, 0);
+		return true;
+	}
+
+
+	private boolean commitFnSymbol(String symbol) {
+		android.view.inputmethod.InputConnection connection = getCurrentInputConnection();
+		if (connection != null) {
+			connection.commitText(symbol, 1);
+		}
+		return true;
+	}
+
+
+	/** KT9 fork: overridden in TypingHandler, which knows the field. */
+	protected boolean sendChatMessageWithSliderOpen() {
+		return false;
+	}
+
+
+	/**
+	 * KT9 fork: the slide just opened or closed. Restart the current field so the input mode is
+	 * re-resolved (to MODE_PASSTHROUGH while it is open) and the keyboard window follows --
+	 * TraditionalT9.onStart() already calls onStop() for a passthrough mode, which hides it.
+	 */
+	protected void onSliderKeyboardChanged() {
+		EditorInfo field = getCurrentInputEditorInfo();
+		if (field != null) {
+			onStart(field, true);
+		}
 	}
 
 

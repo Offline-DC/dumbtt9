@@ -49,6 +49,13 @@ abstract public class MainViewHandler extends HotkeyHandler {
 			previousOrientation = newConfig.orientation;
 			onOrientationChanged();
 		}
+
+		// KT9 fork: on a slider phone the orientation flip IS the slide -- the platform reports no
+		// change in `hardKeyboardHidden` when it opens (see SliderKeyboard). Re-resolve the mode so
+		// we drop into passthrough on the way out and back into T9 on the way in.
+		if (sliderKeyboard.refresh(newConfig)) {
+			onSliderKeyboardChanged();
+		}
 	}
 
 

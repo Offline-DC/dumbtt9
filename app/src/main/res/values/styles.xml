@@ -181,7 +181,16 @@
 		<item name="android:layout_height">match_parent</item>
 		<item name="android:layout_width">match_parent</item>
 		<item name="android:orientation">horizontal</item>
-		<item name="android:scrollbars">none</item>
+		<!-- KT9 fork: MUST name a real scrollbar, not "none". Android only constructs the
+		     ScrollBarDrawable at inflation when this attribute names one; with "none" it is
+		     never created, and SuggestionsBar.updatePunctuationGrid() turning the scrollbar on
+		     at runtime (pressing "1" for punctuation) then draws against a null drawable.
+		     API 28 added a null guard in View.onDrawScrollBars; API 27 has none, so on the HIT
+		     slider (Android 8.1) that was an instant NPE crash of the whole keyboard. Declaring
+		     it here builds the drawable up front; updatePunctuationGrid still calls
+		     setVerticalScrollBarEnabled(false) outside punctuation mode, so nothing is drawn
+		     in normal use and the Flip 2 (API 30) is unaffected. -->
+		<item name="android:scrollbars">vertical</item>
 	</style>
 
 	<style name="TTheme.MainSmall.StatusBar.SuggestionList.Item" parent="">
